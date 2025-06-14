@@ -177,8 +177,8 @@ function createAsteroids() {
     for (let i = 0; i < ASTEROID_NUM + level; i++) {
         do {
             // Asteroids created relative to GAME_ACTUAL_WIDTH/HEIGHT
-            x = Math.floor(Math.random() * GAME_ACTUAL_WIDTH);
-            y = Math.floor(Math.random() * GAME_ACTUAL_HEIGHT);
+            x = Math.floor(Math.random() * canvas.width);
+            y = Math.floor(Math.random() * canvas.height);
         } while (distBetweenPoints(ship.x, ship.y, x, y) < ASTEROID_SIZE * 2 + ship.radius); // Ensure asteroids don't spawn on ship
         asteroids.push(new Asteroid(x, y, Math.ceil(ASTEROID_SIZE / 2))); // initial size is half ASTEROID_SIZE, will be multiplied by 2 later
     }
@@ -188,8 +188,8 @@ function createStars() {
     stars = [];
     for (let i = 0; i < NUM_STARS; i++) {
         stars.push({
-            x: Math.random() * GAME_ACTUAL_WIDTH,
-            y: Math.random() * GAME_ACTUAL_HEIGHT,
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
             radius: Math.random() * (STAR_SIZE_MIN - STAR_SIZE_MIN) + STAR_SIZE_MIN
         });
     }
@@ -205,8 +205,8 @@ function gameOverScreen() {
 
 // --- SHIP OBJECT ---
 function Ship() {
-    this.x = GAME_ACTUAL_WIDTH / 2;
-    this.y = GAME_ACTUAL_HEIGHT / 2;
+    this.x = canvas.width / 2;
+    this.y = canvas.height / 2;
     this.radius = SHIP_SIZE / 2;
     this.angle = 90 / 180 * Math.PI; // default facing up (90 deg)
     this.vel = { x: 0, y: 0 }; // Velocity for absolute movement
@@ -622,7 +622,7 @@ function update() {
                     ctx.moveTo(ss.x, ss.y);
                     // Calculate tail end point by moving backward along the velocity vector
                     const tailX = ss.x - ss.dx / (SHOOTING_STAR_SPEED / FPS) * ss.length;
-                    const tailY = ss.y - ss.dy / (SHOOTING_STAR_SPEED / FPS) * ss.length;
+                    const tailY = ss.y - ss.dy / (SHOATING_STAR_SPEED / FPS) * ss.length;
                     ctx.lineTo(tailX, tailY);
                     ctx.stroke();
                 }
@@ -789,11 +789,11 @@ function drawIntroScreen() {
     }
 
     // Created By - Adjusted Y position
-    ctx.font = `${TEXT_SIZE}px "Times New Roman"`; // Changed font
+    ctx.font = `${TEXT_SIZE}px "Times New Roman"`;
     ctx.fillText("Created by Rayyan", canvas.width / 2, canvas.height * 0.65 + 40); // Adjusted Y for spacing
 
     // Click/Tap to Start - Adjusted Y position
-    ctx.font = `italic ${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font, italic
+    ctx.font = `italic ${TEXT_SIZE * 0.75}px "Times New Roman"`;
     ctx.fillText("Click / Tap to Start", canvas.width / 2, canvas.height * 0.85 + 40); // Adjusted Y for spacing
 }
 
