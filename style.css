@@ -12,33 +12,56 @@ html, body {
     user-select: none;
     -webkit-touch-callout: none;
     -webkit-text-size-adjust: none;
-    display: flex; /* Ensure body is a flex container for canvas positioning */
-    justify-content: center;
-    align-items: center;
+}
+
+body {
+    display: flex; /* Make body a flex container */
+    flex-direction: column; /* Stack canvas and controls vertically */
+    justify-content: center; /* Center content vertically */
+    align-items: center; /* Center content horizontally */
+    min-height: 100vh; /* Ensure body takes full viewport height */
+    min-width: 100vw; /* Ensure body takes full viewport width */
 }
 
 canvas {
     display: block; /* Remove extra space below canvas */
-    background-color: #000; /* Canvas background itself */
+    background-color: #000;
     border: 2px solid #eee; /* Keep border for visual separation */
     touch-action: none; /* Prevent touch gestures on the canvas itself */
+    flex-grow: 1; /* Allow canvas to grow and shrink */
+    flex-shrink: 1;
+    flex-basis: auto;
     
-    /* These properties ensure the canvas element itself covers the entire viewport */
-    position: absolute; /* Allows it to cover the whole screen */
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    /* Max width/height to make canvas responsive, JS will set internal resolution */
+    max-width: 100%;
+    max-height: 100%;
 }
 
 /* On-screen touch controls styling */
 #touch-controls {
-    position: absolute; /* Positioned relative to the body/viewport */
-    /* All positioning and sizing will be handled by JavaScript */
-    display: none; /* Hidden by default, shown by JS */
+    display: none; /* Hidden by default (for PC). Only show on touch devices via media query. */
+    flex-shrink: 0; /* Prevent controls from shrinking if space is tight */
+    padding: 10px; /* Padding around the controls */
     justify-content: space-between;
-    pointer-events: none; /* Allow events to pass through to canvas if not on a button */
-    z-index: 10; /* Ensure controls are above canvas */
+    width: 100%; /* Take full width of parent (body) */
+    box-sizing: border-box; /* Include padding in width calculation */
+}
+
+/* Layout for the left and right control groups */
+#touch-controls .left-controls,
+#touch-controls .right-controls {
+    display: flex;
+    align-items: flex-end;
+    pointer-events: none; /* Allow events to pass through */
+}
+
+#touch-controls .left-controls {
+    display: grid;
+    /* Responsive sizing based on viewport width */
+    grid-template-columns: repeat(3, 10vw); 
+    grid-template-rows: repeat(3, 10vw);
+    gap: 1.5vw; /* Gap relative to viewport width */
+    pointer-events: auto; /* Re-enable for buttons */
 }
 
 /* Base style for individual touch buttons */
@@ -52,20 +75,13 @@ canvas {
     color: white;
     user-select: none;
     cursor: pointer;
-    pointer-events: auto; /* Re-enable pointer events for the buttons themselves */
-    touch-action: manipulation; /* Improves responsiveness on touch devices by disabling double-tap zoom */
-    /* Font size, width, height will be set by JS using px values */
-}
+    pointer-events: auto;
+    touch-action: manipulation;
 
-/* Specific styling for the D-pad like left control group */
-#touch-controls > div:first-child {
-    display: grid;
-    /* Grid template columns/rows and gap will be set by JS dynamically */
-}
-
-/* Styling for the up, down, left, right buttons in the D-pad */
-#touch-up, #touch-down, #touch-left, #touch-right {
-    /* Sizes will be set by JS dynamically */
+    /* Sizing for buttons based on viewport width */
+    width: 10vw;
+    height: 10vw;
+    font-size: 4vw; /* Font size relative to viewport width */
 }
 
 /* Positioning for D-pad buttons within the grid */
@@ -76,9 +92,12 @@ canvas {
 
 
 /* Styling for the larger fire button */
-#touch-shoot {
+.fire-button {
     border-radius: 50%;
-    /* Sizes will be set by JS dynamically */
+    width: 15vw; /* Larger width/height for fire button */
+    height: 15vw;
+    font-size: 5vw; /* Larger font size for fire button */
+    margin-left: auto; /* Push to the right */
 }
 
 /* Hide the placeholder empty divs in the D-pad layout (the corners) */
@@ -88,4 +107,27 @@ canvas {
     pointer-events: none; /* Ensure no interaction */
 }
 
-/* No direct display manipulation in media queries, JS handles it */
+/* Media query to show touch controls ONLY on devices with a coarse pointer (touch) */
+@media (pointer: coarse) {
+    #touch-controls {
+        display: flex; /* Show controls on touch devices */
+    }
+}
+/* For very small/tall mobile screens, adjust touch button sizing */
+@media (max-height: 500px) and (orientation: landscape) {
+    #touch-controls .left-controls {
+        grid-template-columns: repeat(3, 8vh); /* Smaller buttons for very short screens */
+        grid-template-rows: repeat(3, 8vh);
+        gap: 1vh;
+    }
+    .touch-button {
+        width: 8vh;
+        height: 8vh;
+        font-size: 3vh;
+    }
+    .fire-button {
+        width: 12vh;
+        height: 12vh;
+        font-size: 4vh;
+    }
+}
