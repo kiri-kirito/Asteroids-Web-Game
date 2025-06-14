@@ -1,8 +1,7 @@
 // --- GAME CONSTANTS ---
 const FPS = 30; // frames per second
-// Internal game resolution (virtual pixels) - Fixed size for consistent gameplay logic
-const GAME_ACTUAL_WIDTH = 800;
-const GAME_ACTUAL_HEIGHT = 600;
+const GAME_ACTUAL_WIDTH = 800; // Internal game resolution width (virtual pixels)
+const GAME_ACTUAL_HEIGHT = 600; // Internal game resolution height (virtual pixels)
 const SHIP_SIZE = 30; // ship base size in virtual pixels (height)
 const SHIP_SPEED = 200; // ship movement speed in virtual pixels per second
 const BULLET_SPEED = 500; // bullet speed in virtual pixels per second
@@ -102,7 +101,7 @@ window.onload = function() {
     canvas = document.getElementById("gameCanvas");
     ctx = canvas.getContext("2d");
 
-    // Attempt to lock screen orientation to portrait for mobile
+    // Attempt to lock screen orientation to portrait
     if (screen.orientation && screen.orientation.lock) {
         screen.orientation.lock('portrait').then(() => {
             console.log("Screen orientation locked to portrait.");
@@ -113,10 +112,6 @@ window.onload = function() {
     } else {
         console.warn("Screen Orientation API not supported.");
     }
-
-    // Initial canvas setup (internal resolution is fixed in HTML, CSS handles display size)
-    // No need for a complex resizeCanvas call here, as it mostly handles orientation lock/visuals.
-    // The canvas.width/height is already set via HTML attributes (800x600).
 
     scoreHigh = localStorage.getItem(SAVE_HIGH_SCORE_NAME) == null ? 0 :
         parseInt(localStorage.getItem(SAVE_HIGH_SCORE_NAME));
@@ -143,10 +138,10 @@ window.onload = function() {
 
 // Simplified resizeCanvas: now primarily handles orientation lock for mobile
 function resizeCanvas() {
-    // This function mostly remains for the orientation lock attempt
-    // and to trigger any external CSS recalculations on resize.
+    // This function primarily serves the purpose of trying to lock orientation.
     // The canvas's internal resolution (canvas.width, canvas.height) is fixed
     // by its HTML attributes (800x600). Its visual scaling is handled by CSS (object-fit).
+    // So, no changes to canvas.width/height or scaleRatio here.
 }
 
 
@@ -471,7 +466,7 @@ function Asteroid(x, y, radius) {
     }
 
     this.draw = function() {
-        ctx.save(); // Save context before translating and rotating
+        ctx.save(); // Save context before translating and rotating for this asteroid
         // Translate to asteroid's center for rotation, but within the virtual game space
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
@@ -496,7 +491,7 @@ function Asteroid(x, y, radius) {
 
             // Draw the image. It will only be visible within the clipped region.
             // Position it to cover the entire asteroid's visual area.
-            // Adjust image size relative to the asteroid's radius for appropriate coverage.
+            // Adjust image size relative to the asteroid's radius.
             const imgDisplaySize = this.radius * 2.5; // Slightly larger than diameter to ensure full coverage
             ctx.drawImage(asteroidImage, -imgDisplaySize / 2, -imgDisplaySize / 2, imgDisplaySize, imgDisplaySize);
 
@@ -559,37 +554,28 @@ function update() {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // --- Apply global scaling and translation for the entire game frame ---
+    // Draw the background color for the entire actual canvas area (including letterbox areas)
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // --- Apply global scaling and translation for the main game content ---
     ctx.save(); // Save the unscaled/untranslated state
-    // Calculate scaling for the entire canvas based on current HTML dimensions
-    const currentScaleX = canvas.width / GAME_ACTUAL_WIDTH;
-    const currentScaleY = canvas.height / GAME_ACTUAL_HEIGHT;
 
-    // To maintain aspect ratio and center, use the smaller scale factor for both dimensions
-    // and then calculate offsets for centering.
-    const overallScale = Math.min(currentScaleX, currentScaleY);
+    // Calculate the scale factor to fit GAME_ACTUAL_WIDTH/HEIGHT into current canvas dimensions
+    const scaleX = canvas.width / GAME_ACTUAL_WIDTH;
+    const scaleY = canvas.height / GAME_ACTUAL_HEIGHT;
+    const overallScale = Math.min(scaleX, scaleY); // Use the smaller scale to fit content without cutting it off
 
-    // Calculate translation to center the scaled game area
+    // Calculate translation to center the scaled game area within the canvas
     const translatedX = (canvas.width - GAME_ACTUAL_WIDTH * overallScale) / 2;
     const translatedY = (canvas.height - GAME_ACTUAL_HEIGHT * overallScale) / 2;
 
     ctx.translate(translatedX, translatedY); // Apply centering translation
     ctx.scale(overallScale, overallScale);   // Apply overall scaling
-    // Now, all drawing operations that follow will be relative to GAME_ACTUAL_WIDTH/HEIGHT
+    // Now, all drawing operations that follow will be relative to GAME_ACTUAL_WIDTH/HEIGHT virtual coordinates
 
 
-    // Draw space background (black fill first) - NOTE: This will be behind the game content
-    // For a consistent background fill on letterboxed areas, you might need to draw this BEFORE ctx.translate/scale
-    // Or, ensure your body background color covers the letterbox areas.
-    // Let's draw it before the scaling so it covers the full browser canvas.
-    ctx.restore(); // Restore to draw full background without previous transforms
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.save(); // Resave for the game content
-    ctx.translate(translatedX, translatedY);
-    ctx.scale(overallScale, overallScale);
-
-    // Draw static stars
+    // Draw static stars (now correctly scaled and positioned within the game area)
     drawStars();
 
     // Game state management
@@ -604,7 +590,7 @@ function update() {
             break;
         case GAME_STATE.PLAYING:
         case GAME_STATE.GAME_OVER: // Game over screen will still draw game elements underneath
-            // Generate and draw shooting stars
+            // Generate and draw shooting stars (now correctly scaled and positioned)
             if (Math.random() < SHOOTING_STAR_CHANCE) {
                 let side = Math.floor(Math.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
                 let x, y, dx, dy;
@@ -785,6 +771,7 @@ function update() {
 }
 
 function drawLoadingScreen() {
+    // These functions now directly draw at the internal game resolution
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "white";
@@ -795,6 +782,7 @@ function drawLoadingScreen() {
 }
 
 function drawIntroScreen() {
+    // These functions now directly draw at the internal game resolution
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "white";
@@ -1002,7 +990,15 @@ function showTouchControls() {
     // Only show controls if it's a touch device based on media query
     if (touchControls && window.matchMedia("(pointer: coarse)").matches) {
         touchControls.style.display = 'flex';
-        // The positioning logic is mostly in CSS now.
+        // Reposition and resize buttons relative to the canvas's current dimensions
+        // Get the canvas's position and size on the screen (its client rect)
+        const canvasRect = canvas.getBoundingClientRect();
+
+        // The touch controls are positioned absolutely relative to the viewport/body.
+        // We need to calculate their position to be correctly within the canvas's visible area.
+        touchControls.style.bottom = (window.innerHeight - canvasRect.bottom + 10) + 'px'; // 10px from canvas bottom edge
+        touchControls.style.left = (canvasRect.left + 10) + 'px'; // 10px from canvas left edge
+        touchControls.style.width = (canvasRect.width - 20) + 'px'; // Canvas width minus 20px padding (10px each side)
     }
 }
 
@@ -1018,7 +1014,7 @@ function createTouchControls() {
     const controlsContainer = document.createElement('div');
     controlsContainer.id = 'touch-controls';
     controlsContainer.style.position = 'absolute';
-    // Positioning handled by CSS (bottom, left, right)
+    // Positioning will be handled by showTouchControls for dynamic placement
     controlsContainer.style.justifyContent = 'space-between';
     controlsContainer.style.pointerEvents = 'none';
     controlsContainer.style.zIndex = '10';
