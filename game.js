@@ -1,7 +1,7 @@
 // --- GAME CONSTANTS ---
 const FPS = 30; // frames per second
-const GAME_ACTUAL_WIDTH = 800; // Internal game resolution width (virtual pixels)
-const GAME_ACTUAL_HEIGHT = 600; // Internal game resolution height (virtual pixels)
+const GAME_ACTUAL_WIDTH = 800; // Internal game resolution width (fixed for drawing)
+const GAME_ACTUAL_HEIGHT = 600; // Internal game resolution height (fixed for drawing)
 const SHIP_SIZE = 30; // ship base size in virtual pixels (height)
 const SHIP_SPEED = 200; // ship movement speed in virtual pixels per second
 const BULLET_SPEED = 500; // bullet speed in virtual pixels per second
@@ -75,12 +75,6 @@ let keys = {
     shoot: false
 };
 
-// Global transformation variables for drawing the game content
-let globalScale = 1;
-let globalOffsetX = 0;
-let globalOffsetY = 0;
-
-
 // --- EVENT LISTENERS ---
 document.addEventListener("keydown", keyDown);
 document.addEventListener("keyup", keyUp);
@@ -98,7 +92,7 @@ window.addEventListener("gamepaddisconnected", (e) => {
     delete gamepads[e.gamepad.index];
 });
 
-// Window resize event for responsiveness
+// Window resize event for responsiveness (primarily for orientation lock if supported)
 window.onresize = resizeCanvas;
 
 
@@ -106,9 +100,6 @@ window.onresize = resizeCanvas;
 window.onload = function() {
     canvas = document.getElementById("gameCanvas");
     ctx = canvas.getContext("2d");
-
-    // Initial canvas resize to fill screen and set up scaling
-    resizeCanvas(); // This will set canvas.width/height and calculate globalScale/offsets
 
     // Attempt to lock screen orientation to portrait for mobile
     if (screen.orientation && screen.orientation.lock) {
@@ -135,34 +126,21 @@ window.onload = function() {
     myIntroImage.src = MY_IMAGE_SRC;
     asteroidImage.src = ASTEROID_IMAGE_SRC; // Set asteroid image source
 
-    // Create the touch controls HTML elements and set up their listeners
-    createTouchControls();
-    setupTouchListeners(); // Setup listeners immediately after creation so they're ready, even if hidden
+    // Touch controls are now in index.html, just get references and set listeners
+    setupTouchListeners();
 
 
     // Set up the game loop
     setInterval(update, 1000 / FPS);
 }
 
-// Resizes canvas to fill screen and calculates scaling for game content
+// Minimal resizeCanvas: only handles orientation lock and touch control visibility
 function resizeCanvas() {
-    // Set canvas's internal drawing resolution to match the current viewport dimensions
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    // Calculate the scale factor to fit our GAME_ACTUAL_WIDTH/HEIGHT into the new canvas dimensions
-    const scaleX = canvas.width / GAME_ACTUAL_WIDTH;
-    const scaleY = canvas.height / GAME_ACTUAL_HEIGHT;
-
-    // Use the smaller scale factor to ensure the entire game content is visible without cropping
-    globalScale = Math.min(scaleX, scaleY);
-
-    // Calculate offsets to center the scaled game area within the larger actual canvas
-    globalOffsetX = (canvas.width - GAME_ACTUAL_WIDTH * globalScale) / 2;
-    globalOffsetY = (canvas.height - GAME_ACTUAL_HEIGHT * globalScale) / 2;
-
-    // Reposition touch controls (if they exist and are visible)
-    showTouchControls(); // This function now handles sizing and positioning based on new scale
+    if (gameState === GAME_STATE.PLAYING) {
+        showTouchControls();
+    } else {
+        hideTouchControls();
+    }
 }
 
 
@@ -199,8 +177,8 @@ function createAsteroids() {
     for (let i = 0; i < ASTEROID_NUM + level; i++) {
         do {
             // Asteroids created relative to GAME_ACTUAL_WIDTH/HEIGHT
-            x = Math.floor(Math.random() * GAME_ACTUAL_WIDTH);
-            y = Math.floor(Math.random() * GAME_ACTUAL_HEIGHT);
+            x = Math.floor(Math.random() * canvas.width);
+            y = Math.floor(Math.random() * canvas.height);
         } while (distBetweenPoints(ship.x, ship.y, x, y) < ASTEROID_SIZE * 2 + ship.radius); // Ensure asteroids don't spawn on ship
         asteroids.push(new Asteroid(x, y, Math.ceil(ASTEROID_SIZE / 2))); // initial size is half ASTEROID_SIZE, will be multiplied by 2 later
     }
@@ -210,8 +188,8 @@ function createStars() {
     stars = [];
     for (let i = 0; i < NUM_STARS; i++) {
         stars.push({
-            x: Math.random() * GAME_ACTUAL_WIDTH,
-            y: Math.random() * GAME_ACTUAL_HEIGHT,
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
             radius: Math.random() * (STAR_SIZE_MIN - STAR_SIZE_MIN) + STAR_SIZE_MIN
         });
     }
@@ -227,8 +205,8 @@ function gameOverScreen() {
 
 // --- SHIP OBJECT ---
 function Ship() {
-    this.x = GAME_ACTUAL_WIDTH / 2;
-    this.y = GAME_ACTUAL_HEIGHT / 2;
+    this.x = canvas.width / 2;
+    this.y = canvas.height / 2;
     this.radius = SHIP_SIZE / 2;
     this.angle = 90 / 180 * Math.PI; // default facing up (90 deg)
     this.vel = { x: 0, y: 0 }; // Velocity for absolute movement
@@ -241,7 +219,7 @@ function Ship() {
     this.shootTimer = 0;
 
     this.draw = function() {
-        // All scaling and translation is now handled once in the update loop
+        // All drawing is now done directly on the canvas without individual object transforms
         if (!this.exploding && (this.blinkOn || this.blinkNum == 0)) {
             // Draw a more spaceship-like design
             ctx.strokeStyle = "white";
@@ -357,13 +335,13 @@ function Ship() {
 
             // Handle edge of screen
             if (this.x < 0 - this.radius) {
-                this.x = GAME_ACTUAL_WIDTH + this.radius;
-            } else if (this.x > GAME_ACTUAL_WIDTH + this.radius) {
+                this.x = canvas.width + this.radius;
+            } else if (this.x > canvas.width + this.radius) {
                 this.x = 0 - this.radius;
             }
             if (this.y < 0 - this.radius) {
-                this.y = GAME_ACTUAL_HEIGHT + this.radius;
-            } else if (this.y > GAME_ACTUAL_HEIGHT + this.radius) {
+                this.y = canvas.height + this.radius;
+            } else if (this.y > canvas.height + this.radius) {
                 this.y = 0 - this.radius;
             }
 
@@ -402,12 +380,11 @@ function Bullet(x, y, angle) {
     this.y = y;
     this.radius = SHIP_SIZE / 15;
     this.velX = BULLET_SPEED * Math.cos(angle) / FPS;
-    this.velY = -BULLET_SPEED * Math.sin(angle) / FPS; // Y-axis inverted in canvas
+    this.velY = -BULLET_SPEED * Math.sin(angle) / FPS;
     this.distTraveled = 0;
     this.explodeTime = 0;
 
     this.draw = function() {
-        // All scaling and translation is now handled once in the update loop
         if (this.explodeTime == 0) {
             ctx.fillStyle = "lime";
             ctx.beginPath();
@@ -441,18 +418,18 @@ function Bullet(x, y, angle) {
 
         // Handle edge of screen
         if (this.x < 0) {
-            this.x = GAME_ACTUAL_WIDTH;
-        } else if (this.x > GAME_ACTUAL_WIDTH) {
+            this.x = canvas.width;
+        } else if (this.x > canvas.width) {
             this.x = 0;
         }
         if (this.y < 0) {
-            this.y = GAME_ACTUAL_HEIGHT;
-        } else if (this.y > GAME_ACTUAL_HEIGHT) {
+            this.y = canvas.height;
+        } else if (this.y > canvas.height) {
             this.y = 0;
         }
 
         // Remove bullet if it traveled too far
-        if (this.distTraveled > BULLET_MAX_DIST * GAME_ACTUAL_WIDTH) {
+        if (this.distTraveled > BULLET_MAX_DIST * canvas.width) {
             let index = bullets.indexOf(this);
             if (index > -1) {
                 bullets.splice(index, 1);
@@ -488,8 +465,7 @@ function Asteroid(x, y, radius) {
 
     this.draw = function() {
         ctx.save(); // Save context before translating and rotating for this asteroid
-        // Translate to asteroid's center for rotation, but within the virtual game space
-        ctx.translate(this.x, this.y);
+        ctx.translate(this.x, this.y); // Translate to asteroid's center for rotation
         ctx.rotate(this.angle);
 
         // Create the irregular polygonal path
@@ -519,8 +495,7 @@ function Asteroid(x, y, radius) {
             // Important: Restore the context immediately after drawing the image with clip
             ctx.restore(); 
             ctx.save(); // Re-save context to draw outline *without* previous clip affecting it
-            // Re-translate and re-rotate to the asteroid's position/angle for the outline
-            ctx.translate(this.x, this.y); 
+            ctx.translate(this.x, this.y); // Re-translate and re-rotate for the outline
             ctx.rotate(this.angle); 
 
             // Redraw the path for the outline (it's a new path now)
@@ -558,13 +533,13 @@ function Asteroid(x, y, radius) {
 
         // Handle edge of screen
         if (this.x < 0 - this.radius) {
-            this.x = GAME_ACTUAL_WIDTH + this.radius;
-        } else if (this.x > GAME_ACTUAL_WIDTH + this.radius) {
+            this.x = canvas.width + this.radius;
+        } else if (this.x > canvas.width + this.radius) {
             this.x = 0 - this.radius;
         }
         if (this.y < 0 - this.radius) {
-            this.y = GAME_ACTUAL_HEIGHT + this.radius;
-        } else if (this.y > GAME_ACTUAL_HEIGHT + this.radius) {
+            this.y = canvas.height + this.radius;
+        } else if (this.y > canvas.height + this.radius) {
             this.y = 0 - this.radius;
         }
     }
@@ -575,31 +550,9 @@ function update() {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw the background color for the entire actual canvas area (which is the full viewport)
+    // Draw space
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // --- Apply global scaling and translation for the main game content ---
-    ctx.save(); // Save the unscaled/untranslated state
-
-    // Calculate the scale factor to fit GAME_ACTUAL_WIDTH/HEIGHT into current canvas dimensions
-    const scaleX = canvas.width / GAME_ACTUAL_WIDTH;
-    const scaleY = canvas.height / GAME_ACTUAL_HEIGHT;
-
-    // Use the smaller scale factor to ensure the entire game content is visible without cropping
-    const overallScale = Math.min(scaleX, scaleY);
-
-    // Calculate translation to center the scaled game area within the canvas
-    const translatedX = (canvas.width - GAME_ACTUAL_WIDTH * overallScale) / 2;
-    const translatedY = (canvas.height - GAME_ACTUAL_HEIGHT * overallScale) / 2;
-
-    ctx.translate(translatedX, translatedY); // Apply centering translation
-    ctx.scale(overallScale, overallScale);   // Apply overall scaling
-    // Now, all drawing operations that follow will be relative to GAME_ACTUAL_WIDTH/HEIGHT virtual coordinates
-
-
-    // Draw static stars (now correctly scaled and positioned within the game area)
-    drawStars();
 
     // Game state management
     switch (gameState) {
@@ -613,33 +566,35 @@ function update() {
             break;
         case GAME_STATE.PLAYING:
         case GAME_STATE.GAME_OVER: // Game over screen will still draw game elements underneath
-            // Generate and draw shooting stars (now correctly scaled and positioned)
-            // No need for individual save/restore here as the global one applies.
+            // Draw static stars
+            drawStars();
+
+            // Generate and draw shooting stars
             if (Math.random() < SHOOTING_STAR_CHANCE) {
                 let side = Math.floor(Math.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
                 let x, y, dx, dy;
                 switch (side) {
                     case 0: // Top
-                        x = Math.random() * GAME_ACTUAL_WIDTH;
+                        x = Math.random() * canvas.width;
                         y = -SHOOTING_STAR_LENGTH;
                         dx = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
                         dy = (Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
                         break;
                     case 1: // Right
-                        x = GAME_ACTUAL_WIDTH + SHOOTING_STAR_LENGTH;
-                        y = Math.random() * GAME_ACTUAL_HEIGHT;
+                        x = canvas.width + SHOOTING_STAR_LENGTH;
+                        y = Math.random() * canvas.height;
                         dx = -(Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
                         dy = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
                         break;
                     case 2: // Bottom
-                        x = Math.random() * GAME_ACTUAL_WIDTH;
-                        y = GAME_ACTUAL_HEIGHT + SHOOTING_STAR_LENGTH;
+                        x = Math.random() * canvas.width;
+                        y = canvas.height + SHOOTING_STAR_LENGTH;
                         dx = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
                         dy = -(Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
                         break;
                     case 3: // Left
                         x = -SHOOTING_STAR_LENGTH;
-                        y = Math.random() * GAME_ACTUAL_HEIGHT;
+                        y = Math.random() * canvas.height;
                         dx = (Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
                         dy = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
                         break;
@@ -658,7 +613,7 @@ function update() {
                 ss.y += ss.dy;
                 ss.alpha -= ss.fadeRate;
 
-                if (ss.alpha <= 0 || ss.x < -ss.length || ss.x > GAME_ACTUAL_WIDTH + ss.length || ss.y < -ss.length || ss.y > GAME_ACTUAL_HEIGHT + ss.length) {
+                if (ss.alpha <= 0 || ss.x < -ss.length || ss.x > canvas.width + ss.length || ss.y < -ss.length || ss.y > canvas.height + ss.length) {
                     shootingStars.splice(i, 1);
                 } else {
                     ctx.strokeStyle = "rgba(255, 255, 200, " + ss.alpha + ")";
@@ -667,13 +622,12 @@ function update() {
                     ctx.moveTo(ss.x, ss.y);
                     // Calculate tail end point by moving backward along the velocity vector
                     const tailX = ss.x - ss.dx / (SHOOTING_STAR_SPEED / FPS) * ss.length;
-                    const tailY = ss.y - ss.dy / (SHOOTING_STAR_SPEED / FPS) * ss.length;
+                    const tailY = ss.y - ss.dy / (SHOATING_STAR_SPEED / FPS) * ss.length;
                     ctx.lineTo(tailX, tailY);
                     ctx.stroke();
                 }
             }
-            // No ctx.restore here for shooting stars as the main transform is still active
-
+            
             handleGamepadInput(); // Process gamepad input if playing/game over
             
             // Only update game elements if in PLAYING state
@@ -736,13 +690,13 @@ function update() {
             ctx.textBaseline = "middle";
             ctx.fillStyle = "white";
             ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
-            ctx.fillText("SCORE: " + score, GAME_ACTUAL_WIDTH - SHIP_SIZE / 2, SHIP_SIZE);
+            ctx.fillText("SCORE: " + score, canvas.width - SHIP_SIZE / 2, SHIP_SIZE);
 
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillStyle = "white";
             ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
-            ctx.fillText("HIGH SCORE: " + scoreHigh, GAME_ACTUAL_WIDTH / 2, SHIP_SIZE);
+            ctx.fillText("HIGH SCORE: " + scoreHigh, canvas.width / 2, SHIP_SIZE);
 
             let lifeColor;
             for (let i = 0; i < lives; i++) {
@@ -756,9 +710,9 @@ function update() {
                 ctx.textBaseline = "middle";
                 ctx.fillStyle = "white";
                 ctx.font = `bold ${TEXT_SIZE}px "Times New Roman"`; // Changed font, bold for game over
-                ctx.fillText(GAME_OVER_TEXT, GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.75);
+                ctx.fillText(GAME_OVER_TEXT, canvas.width / 2, canvas.height * 0.75);
                 ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
-                ctx.fillText("Press Any Key or Gamepad Button to Restart", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.85);
+                ctx.fillText("Press Any Key or Gamepad Button to Restart", canvas.width / 2, canvas.height * 0.85);
 
                 if (score > scoreHigh) {
                     scoreHigh = score;
@@ -769,7 +723,7 @@ function update() {
                 ctx.textBaseline = "middle";
                 ctx.fillStyle = "rgba(255, 255, 255, " + textAlpha + ")";
                 ctx.font = `bold ${TEXT_SIZE}px "Times New Roman"`; // Changed font, bold for level
-                ctx.fillText(text, GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.75);
+                ctx.fillText(text, canvas.width / 2, canvas.height * 0.75);
                 textAlpha -= (1.0 / TEXT_FADE_TIME / FPS);
             }
             
@@ -782,8 +736,8 @@ function update() {
                 const targetHeight = originalHeight * scaleFactorWM;
 
                 // Position in virtual game coordinates
-                const wmX = GAME_ACTUAL_WIDTH - targetWidth - 10; // 10px padding from right edge
-                const wmY = GAME_ACTUAL_HEIGHT - targetHeight - 10; // 10px padding from bottom edge
+                const wmX = canvas.width - targetWidth - 10; // 10px padding from right edge
+                const wmY = canvas.height - targetHeight - 10; // 10px padding from bottom edge
 
                 ctx.globalAlpha = 0.3; // Make it semi-transparent
                 ctx.drawImage(watermarkImage, wmX, wmY, targetWidth, targetHeight);
@@ -791,31 +745,31 @@ function update() {
             }
             break;
     }
-    ctx.restore(); // Restore the context for the entire frame
 }
 
 function drawLoadingScreen() {
-    // These functions now directly draw at the internal game resolution
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "white";
     ctx.font = `${TEXT_SIZE}px "Times New Roman"`; // Changed font
-    ctx.fillText("Loading Assets...", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT / 2);
+    ctx.fillText("Loading Assets...", canvas.width / 2, canvas.height / 2);
     ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
-    ctx.fillText(`(${imagesLoaded} / ${TOTAL_IMAGES_TO_LOAD} images loaded)`, GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT / 2 + TEXT_SIZE);
+    ctx.fillText(`(${imagesLoaded} / ${TOTAL_IMAGES_TO_LOAD} images loaded)`, canvas.width / 2, canvas.height / 2 + TEXT_SIZE);
 }
 
 function drawIntroScreen() {
-    // These functions now directly draw at the internal game resolution
+    // Draw star background on intro screen
+    drawStars(); 
+
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "white";
 
-    // Game Title - Adjusted Y position to move it up
+    // Game Title - Adjusted Y position for more space
     ctx.font = `bold italic ${TEXT_SIZE * 1.5}px "Times New Roman"`; // Changed font, bold italic
-    ctx.fillText("ASTEROIDS", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.2);
+    ctx.fillText("ASTEROIDS", canvas.width / 2, canvas.height * 0.2); // Adjusted Y
 
-    // My Image - Adjusted Y position relative to canvas height
+    // My Image - Adjusted Y position for more space
     if (myIntroImage.complete && myIntroImage.naturalWidth !== 0) {
         const imgWidth = myIntroImage.naturalWidth;
         const imgHeight = myIntroImage.naturalHeight;
@@ -824,23 +778,23 @@ function drawIntroScreen() {
         const scaledHeight = imgHeight * scale;
 
         ctx.drawImage(myIntroImage,
-                      GAME_ACTUAL_WIDTH / 2 - targetWidth / 2,
-                      GAME_ACTUAL_HEIGHT * 0.35 - scaledHeight / 2, // Moved down to avoid title
+                      canvas.width / 2 - targetWidth / 2,
+                      canvas.height * 0.4 - scaledHeight / 2 + 20, // Adjusted Y for spacing
                       targetWidth,
                       scaledHeight);
     } else {
         // Fallback if image isn't loaded or invalid
         ctx.font = `${TEXT_SIZE}px "Times New Roman"`; // Changed font
-        ctx.fillText("[My Image Placeholder]", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.35);
+        ctx.fillText("[My Image Placeholder]", canvas.width / 2, canvas.height * 0.4 + 20); // Adjusted Y
     }
 
     // Created By - Adjusted Y position
-    ctx.font = `${TEXT_SIZE}px "Times New Roman"`; // Changed font
-    ctx.fillText("Created by Rayyan", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.65);
+    ctx.font = `${TEXT_SIZE}px "Times New Roman"`;
+    ctx.fillText("Created by Rayyan", canvas.width / 2, canvas.height * 0.65 + 40); // Adjusted Y for spacing
 
     // Click/Tap to Start - Adjusted Y position
-    ctx.font = `italic ${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font, italic
-    ctx.fillText("Click / Tap to Start", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.85);
+    ctx.font = `italic ${TEXT_SIZE * 0.75}px "Times New Roman"`;
+    ctx.fillText("Click / Tap to Start", canvas.width / 2, canvas.height * 0.85 + 40); // Adjusted Y for spacing
 }
 
 
@@ -854,7 +808,6 @@ function handleIntroClick(/** @type {MouseEvent | TouchEvent} */ ev) {
 
 
 function drawStars() {
-    // No ctx.save/scale/translate here - done once in update loop
     ctx.fillStyle = "white"; // Stars are drawn relative to their own (x,y,radius)
     for (let i = 0; i < stars.length; i++) {
         ctx.beginPath();
@@ -877,7 +830,6 @@ function breakAsteroid(index) {
 
 // Helper function to draw a simplified ship for lives display
 function drawShipLifeIcon(x, y, angle, color = "white") {
-    // No ctx.save/scale/translate here - done once in update loop
     ctx.strokeStyle = color;
     ctx.lineWidth = SHIP_SIZE / 20;
 
@@ -1009,38 +961,33 @@ function handleGamepadInput() {
     }
 }
 
-// --- ON-SCREEN TOUCH CONTROLS (Dynamically created and managed) ---
+// --- ON-SCREEN TOUCH CONTROLS (Managed by CSS for display, JS for precise sizing/positioning) ---
 
 function showTouchControls() {
     const touchControls = document.getElementById('touch-controls');
     // Only show controls if it's a touch device based on media query
     if (touchControls && window.matchMedia("(pointer: coarse)").matches) {
         touchControls.style.display = 'flex';
-        
-        // Calculate dimensions and positions based on the scaled game area
-        // We want buttons to be positioned relative to the game's scaled content, not the raw canvas.
-        const padding = 10; // Padding in actual screen pixels (relative to scaled game content)
-        
-        // Calculate a responsive size for buttons based on the *smaller* dimension of the scaled game area.
-        // This makes them smaller in landscape (where height is smaller) and larger in portrait (where width is smaller).
-        const minScaledDimension = Math.min(GAME_ACTUAL_WIDTH * overallScale, GAME_ACTUAL_HEIGHT * overallScale);
+        // When touch controls are shown, we need to make sure their sizing variables are set.
+        // Recalculate and apply CSS variables for touch button sizing based on current viewport.
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const viewportMinDim = Math.min(viewportWidth, viewportHeight);
 
-        const buttonBaseSizePx = minScaledDimension * 0.12; // 12% of the smaller scaled dimension
-        const fireButtonSizePx = buttonBaseSizePx * 1.2; // Fire button slightly larger
-        const fontPx = buttonBaseSizePx * 0.3; // Font size based on button size
-        const gapPx = buttonBaseSizePx * 0.07; // Gap size
+        const buttonScale = 0.12; // Base scale for d-pad buttons (12% of min viewport dimension)
+        const fireButtonScale = 0.15; // Fire button slightly larger (15%)
+        const fontScale = 0.035; // Font size (3.5%)
+        const gapScale = 0.01; // Gap size (1%)
 
-        // Set CSS variables for button sizing, used by the grid layout in CSS
-        document.documentElement.style.setProperty('--touch-button-size', `${buttonBaseSizePx}px`);
+        const buttonSizePx = viewportMinDim * buttonScale;
+        const fireButtonSizePx = viewportMinDim * fireButtonScale;
+        const fontPx = viewportMinDim * fontScale;
+        const gapPx = viewportMinDim * gapScale;
+
+        document.documentElement.style.setProperty('--touch-button-size', `${buttonSizePx}px`);
         document.documentElement.style.setProperty('--touch-gap-size', `${gapPx}px`);
         document.documentElement.style.setProperty('--touch-shoot-size', `${fireButtonSizePx}px`);
         document.documentElement.style.setProperty('--touch-shoot-font-size', `${fontPx}px`);
-
-        // Position the touch controls container relative to the visible game content area
-        touchControls.style.left = `${translatedX + padding}px`;
-        touchControls.style.bottom = `${translatedY + padding}px`;
-        touchControls.style.width = `${GAME_ACTUAL_WIDTH * overallScale - (padding * 2)}px`; // Span the game content width
-        // The height will be determined by the content
     }
 }
 
@@ -1051,66 +998,16 @@ function hideTouchControls() {
     }
 }
 
-// This function creates the HTML elements for the touch controls
+// createTouchControls is now simpler as HTML is static. Its only purpose is to ensure listeners are set.
 function createTouchControls() {
-    const controlsContainer = document.createElement('div');
-    controlsContainer.id = 'touch-controls';
-    controlsContainer.style.position = 'absolute';
-    // Positioning will be handled by showTouchControls for dynamic placement
-    controlsContainer.style.justifyContent = 'space-between';
-    controlsContainer.style.pointerEvents = 'none';
-    controlsContainer.style.zIndex = '10';
-
-    // Left controls (Movement D-pad style)
-    const leftControls = document.createElement('div');
-    leftControls.style.display = 'grid';
-    // Sizes for grid cells are defined in CSS using CSS variables (set by JS)
-    leftControls.style.gridTemplateColumns = 'repeat(3, var(--touch-button-size))'; 
-    leftControls.style.gridTemplateRows = 'repeat(3, var(--touch-button-size))';
-    leftControls.style.gap = 'var(--touch-gap-size)';
-    leftControls.style.pointerEvents = 'auto';
-
-    leftControls.innerHTML = `
-        <div class="touch-control-spacer"></div>
-        <div id="touch-up" class="touch-button">▲</div>
-        <div class="touch-control-spacer"></div>
-        <div id="touch-left" class="touch-button">◀</div>
-        <div class="touch-control-spacer"></div>
-        <div id="touch-right" class="touch-button">▶</div>
-        <div class="touch-control-spacer"></div>
-        <div id="touch-down" class="touch-button">▼</div>
-        <div class="touch-control-spacer"></div>
-    `;
-    controlsContainer.appendChild(leftControls);
-
-    // Right controls (Shoot button)
-    const rightControls = document.createElement('div');
-    rightControls.style.display = 'flex';
-    rightControls.style.alignItems = 'flex-end';
-    rightControls.style.pointerEvents = 'auto';
-
-    const shootButton = document.createElement('div');
-    shootButton.id = 'touch-shoot';
-    shootButton.className = 'touch-button';
-    shootButton.textContent = 'FIRE';
-    shootButton.style.borderRadius = '50%';
-    // Specific sizes for shoot button defined in CSS variables
-    shootButton.style.width = 'var(--touch-shoot-size)';
-    shootButton.style.height = 'var(--touch-shoot-size)';
-    shootButton.style.fontSize = 'var(--touch-shoot-font-size)';
-
-    rightControls.appendChild(shootButton);
-    controlsContainer.appendChild(rightControls);
-
-    document.body.appendChild(controlsContainer);
-
-    // Call setupTouchListeners immediately after creating controls
-    setupTouchListeners();
+    // This function is called on window.onload. It just needs to attach listeners.
+    // The touch controls HTML is already in index.html.
 }
 
 
 // This function sets up the event listeners for the touch controls
 function setupTouchListeners() {
+    // Get elements directly as they are now static in HTML
     const touchUp = document.getElementById('touch-up');
     const touchDown = document.getElementById('touch-down');
     const touchLeft = document.getElementById('touch-left');
@@ -1119,6 +1016,8 @@ function setupTouchListeners() {
 
     // Helper to add touch event listeners to a button
     function addTouchListeners(element, keyStateName) {
+        if (!element) return; // Ensure element exists (especially if you remove buttons for specific views)
+
         element.addEventListener('touchstart', (e) => {
             e.preventDefault(); // Prevent default browser actions (scrolling, zooming)
             // If in intro/game over state, touch starts the game
