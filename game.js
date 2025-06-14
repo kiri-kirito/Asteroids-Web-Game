@@ -1,5 +1,7 @@
 // --- GAME CONSTANTS ---
 const FPS = 30; // frames per second
+const GAME_WIDTH = 800; // Internal game resolution width
+const GAME_HEIGHT = 600; // Internal game resolution height
 const SHIP_SIZE = 30; // ship base size in pixels (height)
 const SHIP_SPEED = 200; // ship movement speed in pixels per second
 const BULLET_SPEED = 500; // bullet speed in pixels per second
@@ -88,10 +90,17 @@ window.addEventListener("gamepaddisconnected", (e) => {
     delete gamepads[e.gamepad.index];
 });
 
+// Window resize event for responsiveness
+window.onresize = resizeCanvas;
+
+
 // --- SETUP GAME ---
 window.onload = function() {
     canvas = document.getElementById("gameCanvas");
     ctx = canvas.getContext("2d");
+
+    // Initial canvas resize to fit screen
+    resizeCanvas();
 
     scoreHigh = localStorage.getItem(SAVE_HIGH_SCORE_NAME) == null ? 0 :
         parseInt(localStorage.getItem(SAVE_HIGH_SCORE_NAME));
@@ -106,11 +115,37 @@ window.onload = function() {
 
     // Create the touch controls HTML elements and set up their listeners
     createTouchControls();
-    setupTouchListeners();
+    // Touch controls are hidden by default via CSS; JS will manage display.
+    // We don't call setupTouchListeners here anymore, but after controls are shown.
 
     // Set up the game loop
     setInterval(update, 1000 / FPS);
 }
+
+function resizeCanvas() {
+    let aspectRatio = GAME_WIDTH / GAME_HEIGHT;
+    let newWidth, newHeight;
+
+    // Prioritize fitting within the window's width
+    newWidth = window.innerWidth;
+    newHeight = window.innerWidth / aspectRatio;
+
+    // If height is too big, fit within window's height
+    if (newHeight > window.innerHeight) {
+        newHeight = window.innerHeight;
+        newWidth = window.innerHeight * aspectRatio;
+    }
+
+    // Set canvas display size (CSS pixels)
+    canvas.style.width = newWidth + 'px';
+    canvas.style.height = newHeight + 'px';
+
+    // Set internal drawing resolution (actual pixels)
+    // This maintains game clarity regardless of display size
+    canvas.width = GAME_WIDTH;
+    canvas.height = GAME_HEIGHT;
+}
+
 
 function imageLoadHandler() {
     imagesLoaded++;
@@ -130,6 +165,7 @@ function newGame() {
     // Reset key states on new game
     keys = { up: false, down: false, left: false, right: false, shoot: false };
     gameState = GAME_STATE.PLAYING; // Transition to playing state
+    showTouchControls(); // Show touch controls when game starts
 }
 
 function newLevel() {
@@ -166,6 +202,7 @@ function gameOverScreen() {
     text = GAME_OVER_TEXT;
     textAlpha = 1.0;
     gameState = GAME_STATE.GAME_OVER; // Transition to game over state
+    hideTouchControls(); // Hide touch controls when game is over
 }
 
 // --- SHIP OBJECT ---
@@ -483,9 +520,11 @@ function update() {
     switch (gameState) {
         case GAME_STATE.LOADING:
             drawLoadingScreen();
+            hideTouchControls(); // Ensure controls are hidden during loading
             break;
         case GAME_STATE.INTRO:
             drawIntroScreen();
+            hideTouchControls(); // Ensure controls are hidden during intro
             break;
         case GAME_STATE.PLAYING:
         case GAME_STATE.GAME_OVER: // Game over screen will still draw game elements underneath
@@ -591,6 +630,9 @@ function update() {
                     level++;
                     newLevel();
                 }
+                showTouchControls(); // Show controls only when playing
+            } else {
+                hideTouchControls(); // Hide controls if game is over
             }
 
             // Draw game elements (ship, bullets, asteroids) for both PLAYING and GAME_OVER
@@ -712,11 +754,10 @@ function drawIntroScreen() {
 
 
 function handleIntroClick(/** @type {MouseEvent | TouchEvent} */ ev) {
-    if (gameState === GAME_STATE.INTRO) {
-        // Prevent default actions for clicks/taps on the intro screen
-        ev.preventDefault();
-        // Start the game
-        newGame();
+    // Only handle clicks/taps for starting game in intro or restarting in game over
+    if (gameState === GAME_STATE.INTRO || gameState === GAME_STATE.GAME_OVER) {
+        ev.preventDefault(); // Prevent default browser actions
+        newGame(); // Start or restart the game
     }
 }
 
@@ -766,14 +807,10 @@ function drawShipLifeIcon(x, y, angle, color = "white") {
 
 // --- INPUT HANDLING ---
 function keyDown(/** @type {KeyboardEvent} */ ev) {
-    // If game over, any key restarts the game (keyboard input for intro/game over)
-    if (gameOver && gameState === GAME_STATE.GAME_OVER) {
+    // Check if any key pressed should start/restart the game from intro or game over
+    if (gameState === GAME_STATE.INTRO || (gameOver && gameState === GAME_STATE.GAME_OVER)) {
         newGame();
-        return;
-    }
-    // If in intro, any key starts the game
-    if (gameState === GAME_STATE.INTRO) {
-        newGame();
+        ev.preventDefault(); // Prevent default actions for keys that might scroll/interfere
         return;
     }
     // If loading, ignore keys
@@ -881,6 +918,32 @@ function handleGamepadInput() {
 
 // --- ON-SCREEN TOUCH CONTROLS (Dynamically created and managed) ---
 
+function showTouchControls() {
+    const touchControls = document.getElementById('touch-controls');
+    if (touchControls) {
+        // We check against (pointer: coarse) and (hover: none) to actually decide
+        // if touch controls should be shown based on device capabilities.
+        // This makes sure they don't appear on desktops even with a touch screen
+        // if a mouse is the primary input (which allows hovering).
+        if (window.matchMedia("(pointer: coarse)").matches && !window.matchMedia("(hover: none)").matches) {
+            // It's a touch device, but also has hover (like a tablet with pen or hybrid laptop)
+            // You can decide if you want touch controls here. For now, we'll still hide.
+            touchControls.style.display = 'none';
+        } else if (window.matchMedia("(pointer: coarse)").matches) { // This is for devices with coarse pointer (touch)
+            touchControls.style.display = 'flex';
+        } else {
+            touchControls.style.display = 'none'; // Not a touch device, hide
+        }
+    }
+}
+
+function hideTouchControls() {
+    const touchControls = document.getElementById('touch-controls');
+    if (touchControls) {
+        touchControls.style.display = 'none';
+    }
+}
+
 // This function creates the HTML elements for the touch controls
 function createTouchControls() {
     const controlsContainer = document.createElement('div');
@@ -933,6 +996,10 @@ function createTouchControls() {
     controlsContainer.appendChild(rightControls);
 
     document.body.appendChild(controlsContainer);
+
+    // Call setupTouchListeners immediately after creating controls
+    // This ensures event listeners are attached correctly regardless of visibility state.
+    setupTouchListeners();
 }
 
 
@@ -962,7 +1029,14 @@ function setupTouchListeners() {
         element.addEventListener('touchend', (e) => {
             e.preventDefault();
             // Don't reset keys if we just started a new game from touch
-            if (gameState !== GAME_STATE.PLAYING) return;
+            if (gameState !== GAME_STATE.PLAYING) {
+                // If the game state changes right after touchstart (e.g., to PLAYING),
+                // we still want to reset the key state, unless it was a transition *to*
+                // intro/game over from playing. This might need more specific logic
+                // if touch inputs are getting stuck due to rapid state changes.
+                // For now, simpler: if not playing, don't change key state on touchend.
+                return;
+            }
 
             keys[keyStateName] = false;
             element.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'; // Reset visual feedback
