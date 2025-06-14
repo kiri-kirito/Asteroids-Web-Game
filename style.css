@@ -17,29 +17,30 @@ html, body {
 
 body {
     display: flex;
-    flex-direction: column; /* Stack canvas and controls vertically */
-    justify-content: center; /* Center content vertically */
-    align-items: center; /* Center content horizontally */
-    min-height: 100vh; /* Ensure body takes full viewport height */
-    min-width: 100vw; /* Ensure body takes full viewport width */
+    flex-direction: column;
+    justify-content: flex-start; /* Changed from center to flex-start */
+    align-items: center;
+    min-height: 100vh;
+    min-width: 100vw;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     position: relative;
+    padding-top: 20px; /* Added top padding */
 }
 
 canvas {
-    display: block; /* Remove extra space below canvas */
+    display: block;
     background-color: #000;
-    border: 2px solid #eee; /* Keep border for visual separation */
-    touch-action: none; /* Prevent touch gestures on the canvas itself */
+    border: 2px solid #eee;
+    touch-action: none;
     
     /* Fixed size for PC */
     width: 800px;
     height: 600px;
     max-width: 100%;
     max-height: 100%;
-    object-fit: contain; /* Scale to fit, maintain aspect ratio */
-    margin: auto; /* Center the canvas */
-    flex-shrink: 0; /* Prevent canvas from shrinking */
+    object-fit: contain;
+    margin: 0 auto; /* Changed from margin: auto to margin: 0 auto */
+    flex-shrink: 0;
 }
 
 /* On-screen touch controls styling */
@@ -119,7 +120,7 @@ canvas {
     pointer-events: none; /* Ensure no interaction */
 }
 
-/* Updated Media Queries for Mobile Responsiveness */
+/* Media Queries for Mobile Responsiveness */
 @media (pointer: coarse) {
     #touch-controls {
         display: flex;
@@ -129,17 +130,21 @@ canvas {
     @media (orientation: portrait) {
         body {
             padding: 0;
+            justify-content: space-between; /* Changed to space-between */
+            min-height: 100vh;
         }
-        
+
         canvas {
             width: 100vw;
             height: auto;
             aspect-ratio: 4/3;
-            max-height: 70vh; /* Leave space for controls */
+            max-height: 60vh; /* Reduced from 65vh to 60vh */
+            margin-top: 10px; /* Added top margin */
         }
 
         #touch-controls {
             padding: 10px 5vw;
+            margin-top: auto; /* Push controls to bottom */
         }
 
         #touch-controls .left-controls {
@@ -168,13 +173,15 @@ canvas {
         body {
             flex-direction: row;
             padding: 0;
+            justify-content: space-between; /* Changed to space-between */
         }
 
         canvas {
-            height: 100vh;
+            height: 90vh; /* Reduced from 95vh to 90vh */
             width: auto;
             aspect-ratio: 4/3;
-            max-width: 70vw; /* Leave space for controls */
+            max-width: 70vw;
+            margin-left: 10px; /* Added left margin */
         }
 
         #touch-controls {
