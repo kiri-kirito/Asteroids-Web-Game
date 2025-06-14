@@ -75,6 +75,11 @@ let keys = {
     shoot: false
 };
 
+// Add these variables at the top with other game variables
+let lastTime = 0;
+let accumulator = 0;
+const timeStep = 1000 / FPS;
+
 // --- EVENT LISTENERS ---
 document.addEventListener("keydown", keyDown);
 document.addEventListener("keyup", keyUp);
@@ -107,7 +112,6 @@ window.onload = function() {
             console.log("Screen orientation locked to portrait.");
         }).catch((err) => {
             console.warn("Could not lock screen orientation:", err);
-            // Fallback for browsers that don't support lock or if user denies
         });
     } else {
         console.warn("Screen Orientation API not supported.");
@@ -129,38 +133,44 @@ window.onload = function() {
     // Touch controls are now in index.html, just get references and set listeners
     setupTouchListeners();
 
+    // Start the game loop using requestAnimationFrame
+    requestAnimationFrame(gameLoop);
+}
 
-    // Set up the game loop
-    setInterval(update, 1000 / FPS);
+// New game loop function using requestAnimationFrame
+function gameLoop(timestamp) {
+    if (!lastTime) lastTime = timestamp;
+    const deltaTime = timestamp - lastTime;
+    lastTime = timestamp;
+
+    accumulator += deltaTime;
+
+    while (accumulator >= timeStep) {
+        update();
+        accumulator -= timeStep;
+    }
+
+    requestAnimationFrame(gameLoop);
 }
 
 function resizeCanvas() {
-    // Set canvas size to match the CSS dimensions
     const canvasStyle = window.getComputedStyle(canvas);
     const width = parseInt(canvasStyle.width);
     const height = parseInt(canvasStyle.height);
     
-    // Only update if the size has actually changed
     if (canvas.width !== width || canvas.height !== height) {
-        // Store the current context state
-        ctx.save();
-        
-        // Update canvas dimensions
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         canvas.width = width;
         canvas.height = height;
-        
-        // Restore the context state
-        ctx.restore();
+        ctx.putImageData(imageData, 0, 0);
     }
 
-    // Update touch controls visibility
     if (gameState === GAME_STATE.PLAYING) {
         showTouchControls();
     } else {
         hideTouchControls();
     }
 }
-
 
 function imageLoadHandler() {
     imagesLoaded++;
@@ -565,7 +575,7 @@ function Asteroid(x, y, radius) {
 
 // --- GAME LOOP ---
 function update() {
-    // Clear canvas with a single operation
+    // Use a single fillRect for clearing
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -674,8 +684,7 @@ function update() {
 
                     for (let j = asteroids.length - 1; j >= 0; j--) {
                         if (distBetweenPoints(bullets[i].x, bullets[i].y, asteroids[j].x, asteroids[j].y) < bullets[i].radius + asteroids[j].radius) {
-                            bullets[i].explode();
-                            breakAsteroid(j);
+                            handleBulletAsteroidCollision(i, j);
                             break;
                         }
                     }
@@ -830,6 +839,11 @@ function drawStars() {
     }
 }
 
+function handleBulletAsteroidCollision(bulletIndex, asteroidIndex) {
+    bullets[bulletIndex].explode();
+    breakAsteroid(asteroidIndex);
+}
+
 function breakAsteroid(index) {
     const asteroid = asteroids[index];
     const radius = asteroid.radius / 2;
@@ -839,25 +853,23 @@ function breakAsteroid(index) {
     
     // Create two smaller asteroids if the original was large enough
     if (radius > ASTEROID_SIZE / 8) {
-        // Create two new asteroids with random angles
         const angle1 = Math.random() * Math.PI * 2;
         const angle2 = (angle1 + Math.PI) % (Math.PI * 2);
         
-        // Calculate new positions
         const offset = radius * 0.8;
         const x1 = asteroid.x + Math.cos(angle1) * offset;
         const y1 = asteroid.y + Math.sin(angle1) * offset;
         const x2 = asteroid.x + Math.cos(angle2) * offset;
         const y2 = asteroid.y + Math.sin(angle2) * offset;
         
-        // Create new asteroids
         asteroids.push(new Asteroid(x1, y1, radius));
         asteroids.push(new Asteroid(x2, y2, radius));
     }
     
-    // Update score with reduced points
-    // Base score is now 20 points, plus 10 points per level
-    score += Math.floor(20 + (level * 10));
+    // New scoring system
+    const baseScore = 20;
+    const levelBonus = level * 10;
+    score += baseScore + levelBonus;
     
     // Check if all asteroids are destroyed
     if (asteroids.length === 0) {
