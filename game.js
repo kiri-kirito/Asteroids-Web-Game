@@ -92,7 +92,7 @@ window.addEventListener("gamepaddisconnected", (e) => {
     delete gamepads[e.gamepad.index];
 });
 
-// Window resize event for responsiveness
+// Window resize event for responsiveness (primarily for orientation lock if supported)
 window.onresize = resizeCanvas;
 
 
@@ -101,8 +101,9 @@ window.onload = function() {
     canvas = document.getElementById("gameCanvas");
     ctx = canvas.getContext("2d");
 
-    // Initial canvas resize to fill window and calculate transforms
-    resizeCanvas(); 
+    // Initial canvas setup (internal resolution is fixed in HTML, CSS handles display size)
+    // No need for a complex resizeCanvas call here, as it mostly handles orientation lock/visuals.
+    // The canvas.width/height is already set via HTML attributes (800x600).
 
     // Attempt to lock screen orientation to portrait for mobile
     if (screen.orientation && screen.orientation.lock) {
@@ -130,7 +131,6 @@ window.onload = function() {
     asteroidImage.src = ASTEROID_IMAGE_SRC; // Set asteroid image source
 
     // Touch controls are now in index.html, just get references and set listeners
-    // createTouchControls() is effectively replaced by static HTML structure
     setupTouchListeners();
 
 
@@ -138,15 +138,18 @@ window.onload = function() {
     setInterval(update, 1000 / FPS);
 }
 
-// Resizes canvas to fill screen and calculates scaling for game content
+// Simplified resizeCanvas: now primarily handles orientation lock for mobile
 function resizeCanvas() {
-    // Set canvas's internal drawing resolution to match the current viewport dimensions
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    // Call showTouchControls to ensure its position/size is updated on resize
-    // (It will handle its own display property based on game state and device capability)
-    showTouchControls(); 
+    // This function primarily serves the purpose of trying to lock orientation.
+    // The canvas's internal resolution (canvas.width, canvas.height) is fixed
+    // by its HTML attributes (800x600). Its visual scaling is handled by CSS (object-fit).
+    // So, no changes to canvas.width/height or scaleRatio here.
+    // We only call showTouchControls/hideTouchControls to adjust visibility.
+    if (gameState === GAME_STATE.PLAYING) {
+        showTouchControls();
+    } else {
+        hideTouchControls();
+    }
 }
 
 
@@ -225,7 +228,7 @@ function Ship() {
     this.shootTimer = 0;
 
     this.draw = function() {
-        // All scaling and translation is now handled once in the update loop
+        // All drawing is now done directly on the canvas without individual object transforms
         if (!this.exploding && (this.blinkOn || this.blinkNum == 0)) {
             // Draw a more spaceship-like design
             ctx.strokeStyle = "white";
@@ -391,7 +394,7 @@ function Bullet(x, y, angle) {
     this.explodeTime = 0;
 
     this.draw = function() {
-        // All scaling and translation is now handled once in the update loop
+        // All drawing is now done directly on the canvas without individual object transforms
         if (this.explodeTime == 0) {
             ctx.fillStyle = "lime";
             ctx.beginPath();
@@ -598,7 +601,6 @@ function update() {
         case GAME_STATE.PLAYING:
         case GAME_STATE.GAME_OVER: // Game over screen will still draw game elements underneath
             // Generate and draw shooting stars (now correctly scaled and positioned)
-            // No need for individual save/restore here as the global one applies.
             if (Math.random() < SHOOTING_STAR_CHANCE) {
                 let side = Math.floor(Math.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
                 let x, y, dx, dy;
@@ -997,16 +999,11 @@ function handleGamepadInput() {
 
 function showTouchControls() {
     const touchControls = document.getElementById('touch-controls');
-    // Only attempt to show controls if it's a touch device based on media query
-    // This allows the CSS @media rule to toggle its initial display.
+    // Only show controls if it's a touch device based on media query
     if (touchControls && window.matchMedia("(pointer: coarse)").matches) {
-        touchControls.style.display = 'flex'; // Ensure it's visible if device is touch-capable
-
-        // Get the canvas's current bounding rectangle relative to the viewport
-        const canvasRect = canvas.getBoundingClientRect();
-        
-        // Calculate the responsive size for touch buttons based on the *smaller dimension* of the viewport,
-        // so they don't get too big in landscape or too small in portrait.
+        touchControls.style.display = 'flex';
+        // When touch controls are shown, we need to make sure their sizing variables are set.
+        // Recalculate and apply CSS variables for touch button sizing
         const viewportMinDim = Math.min(window.innerWidth, window.innerHeight);
 
         const buttonScale = 0.12; // Base scale for d-pad buttons (12% of min viewport dimension)
@@ -1019,26 +1016,10 @@ function showTouchControls() {
         const fontPx = viewportMinDim * fontScale;
         const gapPx = viewportMinDim * gapScale;
 
-        // Set CSS variables for touch button sizing, used by the grid layout in CSS
         document.documentElement.style.setProperty('--touch-button-size', `${buttonSizePx}px`);
         document.documentElement.style.setProperty('--touch-gap-size', `${gapPx}px`);
         document.documentElement.style.setProperty('--touch-shoot-size', `${fireButtonSizePx}px`);
         document.documentElement.style.setProperty('--touch-shoot-font-size', `${fontPx}px`);
-
-        // Position the touch controls container relative to the visible game content area
-        const paddingPx = 10; // Padding in actual screen pixels
-        // The touch controls are positioned absolutely relative to the body (viewport).
-        // We want them to be placed below the game content if in portrait,
-        // or on the sides if in landscape, but still within the black background areas.
-        // This is complex if they are outside the canvas that is centered.
-
-        // Simpler approach: position relative to the overall viewport corners,
-        // and let their calculated size determine if they fit.
-        // This ensures they are always "in the corner" of the physical screen.
-        touchControls.style.left = `${paddingPx}px`;
-        touchControls.style.bottom = `${paddingPx}px`;
-        touchControls.style.width = `calc(100% - ${paddingPx * 2}px)`; // Spans screen width
-        // Height is determined by content
     }
 }
 
@@ -1049,10 +1030,10 @@ function hideTouchControls() {
     }
 }
 
-// createTouchControls is now simpler as HTML is static
+// createTouchControls is now simpler as HTML is static. Its only purpose is to ensure listeners are set.
 function createTouchControls() {
-    // This function is now effectively a placeholder as the HTML is static.
-    // Its purpose here is simply to attach listeners via setupTouchListeners.
+    // This function is called on window.onload. It just needs to attach listeners.
+    // The touch controls HTML is already in index.html.
 }
 
 
