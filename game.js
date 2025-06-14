@@ -32,6 +32,10 @@ const SHOOTING_STAR_CHANCE = 0.005; // Chance per frame for a shooting star
 const SHOOTING_STAR_SPEED = 300; // Pixels per second
 const SHOOTING_STAR_LENGTH = 100; // Pixels
 
+// Image Paths (IMPORTANT: Update these if your image names/paths are different)
+const WATERMARK_IMAGE_SRC = "image/• 𝘒𝘢𝘮𝘰𝘯𝘰𝘩𝘢𝘴𝘩𝘪 𝘙𝘰𝘯.jpeg";
+const MY_IMAGE_SRC = "image/• 𝘒𝘢𝘮𝘰𝘯𝘰𝘩𝘢𝘴𝘩𝘪 𝘙𝘰𝘯.jpeg"; // Your personal image for intro screen
+
 // --- GAME VARIABLES ---
 let canvas, ctx;
 let ship;
@@ -47,6 +51,19 @@ let text;
 let textAlpha;
 let gameOver;
 let gamepads = {}; // To store connected gamepads
+let watermarkImage = new Image();
+let myIntroImage = new Image();
+let imagesLoaded = 0; // Counter for image loading
+const TOTAL_IMAGES_TO_LOAD = 2; // Adjust if you add more images
+
+// Game States
+const GAME_STATE = {
+    LOADING: 0,
+    INTRO: 1,
+    PLAYING: 2,
+    GAME_OVER: 3
+};
+let gameState = GAME_STATE.LOADING; // Initial state
 
 // Input state for smoother movement with multiple keys
 let keys = {
@@ -57,6 +74,8 @@ let keys = {
 // --- EVENT LISTENERS ---
 document.addEventListener("keydown", keyDown);
 document.addEventListener("keyup", keyUp);
+document.addEventListener("mousedown", handleIntroClick); // For mouse click on intro
+document.addEventListener("touchend", handleIntroClick); // For touch on intro
 
 // Gamepad connection events
 window.addEventListener("gamepadconnected", (e) => {
@@ -79,14 +98,26 @@ window.onload = function() {
 
     createStars(); // Initialize background stars
 
+    // Load images
+    watermarkImage.onload = imageLoadHandler;
+    myIntroImage.onload = imageLoadHandler;
+    watermarkImage.src = WATERMARK_IMAGE_SRC;
+    myIntroImage.src = MY_IMAGE_SRC;
+
     // Create the touch controls HTML elements and set up their listeners
     createTouchControls();
     setupTouchListeners();
 
-    newGame();
-
     // Set up the game loop
     setInterval(update, 1000 / FPS);
+}
+
+function imageLoadHandler() {
+    imagesLoaded++;
+    if (imagesLoaded === TOTAL_IMAGES_TO_LOAD) {
+        // All images loaded, transition to intro state
+        gameState = GAME_STATE.INTRO;
+    }
 }
 
 function newGame() {
@@ -98,6 +129,7 @@ function newGame() {
     newLevel();
     // Reset key states on new game
     keys = { up: false, down: false, left: false, right: false, shoot: false };
+    gameState = GAME_STATE.PLAYING; // Transition to playing state
 }
 
 function newLevel() {
@@ -133,6 +165,7 @@ function gameOverScreen() {
     gameOver = true;
     text = GAME_OVER_TEXT;
     textAlpha = 1.0;
+    gameState = GAME_STATE.GAME_OVER; // Transition to game over state
 }
 
 // --- SHIP OBJECT ---
@@ -436,9 +469,6 @@ function Asteroid(x, y, radius) {
 
 // --- GAME LOOP ---
 function update() {
-    // Check for gamepad input
-    handleGamepadInput();
-
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -449,169 +479,247 @@ function update() {
     // Draw static stars
     drawStars();
 
-    // Generate and draw shooting stars
-    if (Math.random() < SHOOTING_STAR_CHANCE) {
-        let side = Math.floor(Math.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
-        let x, y, dx, dy;
-        switch (side) {
-            case 0: // Top
-                x = Math.random() * canvas.width;
-                y = -SHOOTING_STAR_LENGTH;
-                dx = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
-                dy = (Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
-                break;
-            case 1: // Right
-                x = canvas.width + SHOOTING_STAR_LENGTH;
-                y = Math.random() * canvas.height;
-                dx = -(Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
-                dy = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
-                break;
-            case 2: // Bottom
-                x = Math.random() * canvas.width;
-                y = canvas.height + SHOOTING_STAR_LENGTH;
-                dx = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
-                dy = -(Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
-                break;
-            case 3: // Left
-                x = -SHOOTING_STAR_LENGTH;
-                y = Math.random() * canvas.height;
-                dx = (Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
-                dy = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
-                break;
-        }
-        shootingStars.push({
-            x: x, y: y, dx: dx, dy: dy,
-            length: SHOOTING_STAR_LENGTH,
-            alpha: 1.0,
-            fadeRate: 1.0 / (FPS * (SHOOTING_STAR_LENGTH / SHOOTING_STAR_SPEED) * 2) // Fade over twice travel time
-        });
-    }
-
-    for (let i = shootingStars.length - 1; i >= 0; i--) {
-        let ss = shootingStars[i];
-        ss.x += ss.dx;
-        ss.y += ss.dy;
-        ss.alpha -= ss.fadeRate;
-
-        if (ss.alpha <= 0 || ss.x < -ss.length || ss.x > canvas.width + ss.length || ss.y < -ss.length || ss.y > canvas.height + ss.length) {
-            shootingStars.splice(i, 1);
-        } else {
-            ctx.strokeStyle = "rgba(255, 255, 200, " + ss.alpha + ")";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(ss.x, ss.y);
-            // Calculate tail end point by moving backward along the velocity vector
-            const tailX = ss.x - ss.dx / (SHOOTING_STAR_SPEED / FPS) * ss.length;
-            const tailY = ss.y - ss.dy / (SHOOTING_STAR_SPEED / FPS) * ss.length;
-            ctx.lineTo(tailX, tailY);
-            ctx.stroke();
-        }
-    }
-
-
-    // Draw ship
-    ship.update();
-    ship.draw();
-
-    // Draw bullets
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        bullets[i].update();
-        bullets[i].draw();
-    }
-
-    // Draw asteroids
-    for (let i = asteroids.length - 1; i >= 0; i--) {
-        asteroids[i].update();
-        asteroids[i].draw();
-    }
-
-    // Detect collisions (only if ship is not exploding and not invulnerable)
-    if (!ship.exploding && ship.blinkNum == 0) {
-        // Ship-asteroid collisions
-        for (let i = asteroids.length - 1; i >= 0; i--) {
-            if (distBetweenPoints(ship.x, ship.y, asteroids[i].x, asteroids[i].y) < ship.radius + asteroids[i].radius) {
-                ship.explode();
-                break; // Only explode once per frame
+    // Game state management
+    switch (gameState) {
+        case GAME_STATE.LOADING:
+            drawLoadingScreen();
+            break;
+        case GAME_STATE.INTRO:
+            drawIntroScreen();
+            break;
+        case GAME_STATE.PLAYING:
+        case GAME_STATE.GAME_OVER: // Game over screen will still draw game elements underneath
+            // Generate and draw shooting stars (only in playing/game over state)
+            if (Math.random() < SHOOTING_STAR_CHANCE) {
+                let side = Math.floor(Math.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
+                let x, y, dx, dy;
+                switch (side) {
+                    case 0: // Top
+                        x = Math.random() * canvas.width;
+                        y = -SHOOTING_STAR_LENGTH;
+                        dx = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
+                        dy = (Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
+                        break;
+                    case 1: // Right
+                        x = canvas.width + SHOOTING_STAR_LENGTH;
+                        y = Math.random() * canvas.height;
+                        dx = -(Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
+                        dy = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
+                        break;
+                    case 2: // Bottom
+                        x = Math.random() * canvas.width;
+                        y = canvas.height + SHOOTING_STAR_LENGTH;
+                        dx = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
+                        dy = -(Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
+                        break;
+                    case 3: // Left
+                        x = -SHOOTING_STAR_LENGTH;
+                        y = Math.random() * canvas.height;
+                        dx = (Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
+                        dy = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
+                        break;
+                }
+                shootingStars.push({
+                    x: x, y: y, dx: dx, dy: dy,
+                    length: SHOOTING_STAR_LENGTH,
+                    alpha: 1.0,
+                    fadeRate: 1.0 / (FPS * (SHOOTING_STAR_LENGTH / SHOOTING_STAR_SPEED) * 2) // Fade over twice travel time
+                });
             }
-        }
-    }
 
-    // Bullet-asteroid collisions
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        // Skip exploding bullets
-        if (bullets[i].explodeTime > 0) {
-            continue;
-        }
+            for (let i = shootingStars.length - 1; i >= 0; i--) {
+                let ss = shootingStars[i];
+                ss.x += ss.dx;
+                ss.y += ss.dy;
+                ss.alpha -= ss.fadeRate;
 
-        for (let j = asteroids.length - 1; j >= 0; j--) {
-            if (distBetweenPoints(bullets[i].x, bullets[i].y, asteroids[j].x, asteroids[j].y) < bullets[i].radius + asteroids[j].radius) {
-                // Destroy bullet
-                bullets[i].explode();
-
-                // Break asteroid
-                breakAsteroid(j);
-
-                // Add score
-                score += (ASTEROID_SIZE - asteroids[j].radius) / ASTEROID_SIZE * 100 + 50;
-
-                // Stop checking current bullet against other asteroids if it hit one
-                break;
+                if (ss.alpha <= 0 || ss.x < -ss.length || ss.x > canvas.width + ss.length || ss.y < -ss.length || ss.y > canvas.height + ss.length) {
+                    shootingStars.splice(i, 1);
+                } else {
+                    ctx.strokeStyle = "rgba(255, 255, 200, " + ss.alpha + ")";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(ss.x, ss.y);
+                    // Calculate tail end point by moving backward along the velocity vector
+                    const tailX = ss.x - ss.dx / (SHOOTING_STAR_SPEED / FPS) * ss.length;
+                    const tailY = ss.y - ss.dy / (SHOOTING_STAR_SPEED / FPS) * ss.length;
+                    ctx.lineTo(tailX, tailY);
+                    ctx.stroke();
+                }
             }
-        }
+
+            handleGamepadInput(); // Process gamepad input if playing/game over
+            
+            // Only update game elements if in PLAYING state
+            if (gameState === GAME_STATE.PLAYING) {
+                ship.update();
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    bullets[i].update();
+                }
+                for (let i = asteroids.length - 1; i >= 0; i--) {
+                    asteroids[i].update();
+                }
+
+                // Collision detection (only if playing)
+                if (!ship.exploding && ship.blinkNum == 0) {
+                    // Ship-asteroid collisions
+                    for (let i = asteroids.length - 1; i >= 0; i--) {
+                        if (distBetweenPoints(ship.x, ship.y, asteroids[i].x, asteroids[i].y) < ship.radius + asteroids[i].radius) {
+                            ship.explode();
+                            break;
+                        }
+                    }
+                }
+
+                // Bullet-asteroid collisions
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    if (bullets[i].explodeTime > 0) {
+                        continue;
+                    }
+
+                    for (let j = asteroids.length - 1; j >= 0; j--) {
+                        if (distBetweenPoints(bullets[i].x, bullets[i].y, asteroids[j].x, asteroids[j].y) < bullets[i].radius + asteroids[j].radius) {
+                            bullets[i].explode();
+                            breakAsteroid(j);
+                            score += (ASTEROID_SIZE - asteroids[j].radius) / ASTEROID_SIZE * 100 + 50;
+                            break;
+                        }
+                    }
+                }
+
+                if (asteroids.length == 0) {
+                    level++;
+                    newLevel();
+                }
+            }
+
+            // Draw game elements (ship, bullets, asteroids) for both PLAYING and GAME_OVER
+            ship.draw();
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                bullets[i].draw();
+            }
+            for (let i = asteroids.length - 1; i >= 0; i--) {
+                asteroids[i].draw();
+            }
+            
+            // Draw score, high score, lives (always visible during gameplay & game over)
+            ctx.textAlign = "right";
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = "white";
+            ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
+            ctx.fillText("SCORE: " + score, canvas.width - SHIP_SIZE / 2, SHIP_SIZE);
+
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = "white";
+            ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
+            ctx.fillText("HIGH SCORE: " + scoreHigh, canvas.width / 2, SHIP_SIZE);
+
+            let lifeColor;
+            for (let i = 0; i < lives; i++) {
+                lifeColor = ship.exploding && i == lives - 1 ? "red" : "white";
+                drawShipLifeIcon(SHIP_SIZE + i * SHIP_SIZE * 1.2, SHIP_SIZE, 0.5 * Math.PI, lifeColor);
+            }
+
+            // Draw game over text if applicable
+            if (gameOver) {
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = "white";
+                ctx.font = `bold ${TEXT_SIZE}px "Times New Roman"`; // Changed font, bold for game over
+                ctx.fillText(GAME_OVER_TEXT, canvas.width / 2, canvas.height * 0.75);
+                ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
+                ctx.fillText("Press Any Key or Gamepad Button to Restart", canvas.width / 2, canvas.height * 0.85);
+
+                if (score > scoreHigh) {
+                    scoreHigh = score;
+                    localStorage.setItem(SAVE_HIGH_SCORE_NAME, scoreHigh);
+                }
+            } else if (textAlpha >= 0) { // Draw level text if not game over
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillStyle = "rgba(255, 255, 255, " + textAlpha + ")";
+                ctx.font = `bold ${TEXT_SIZE}px "Times New Roman"`; // Changed font, bold for level
+                ctx.fillText(text, canvas.width / 2, canvas.height * 0.75);
+                textAlpha -= (1.0 / TEXT_FADE_TIME / FPS);
+            }
+            
+            // Draw Watermark Image (only in playing/game over states)
+            if (watermarkImage.complete && watermarkImage.naturalWidth !== 0) {
+                const originalWidth = watermarkImage.naturalWidth;
+                const originalHeight = watermarkImage.naturalHeight;
+                const targetWidth = 60; // Adjusted target width
+                const scaleFactor = targetWidth / originalWidth;
+                const targetHeight = originalHeight * scaleFactor;
+
+                const wmX = canvas.width - targetWidth - 10; // 10px padding from right edge
+                const wmY = canvas.height - targetHeight - 10; // 10px padding from bottom edge
+
+                ctx.globalAlpha = 0.3; // Make it semi-transparent
+                ctx.drawImage(watermarkImage, wmX, wmY, targetWidth, targetHeight);
+                ctx.globalAlpha = 1.0; // Reset alpha for other drawings
+            }
+            break;
     }
+}
 
-    // Check for level up
-    if (asteroids.length == 0) {
-        level++;
-        newLevel();
-    }
-
-    // Draw text (level title)
-    if (textAlpha >= 0) {
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillStyle = "rgba(255, 255, 255, " + textAlpha + ")";
-        ctx.font = "small-caps " + TEXT_SIZE + "px monospace";
-        ctx.fillText(text, canvas.width / 2, canvas.height * 0.75);
-        textAlpha -= (1.0 / TEXT_FADE_TIME / FPS);
-    } else if (gameOver) {
-        // Handle "Game Over"
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillStyle = "white";
-        ctx.font = "small-caps " + TEXT_SIZE + "px monospace";
-        ctx.fillText(GAME_OVER_TEXT, canvas.width / 2, canvas.height * 0.75);
-        ctx.fillText("Press Any Key or Gamepad Button to Restart", canvas.width / 2, canvas.height * 0.85);
-
-        // Check high score
-        if (score > scoreHigh) {
-            scoreHigh = score;
-            localStorage.setItem(SAVE_HIGH_SCORE_NAME, scoreHigh);
-        }
-    }
-
-    // Draw score
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "white";
-    ctx.font = TEXT_SIZE * 0.75 + "px monospace";
-    ctx.fillText("SCORE: " + score, canvas.width - SHIP_SIZE / 2, SHIP_SIZE);
-
-    // Draw high score
+function drawLoadingScreen() {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "white";
-    ctx.font = TEXT_SIZE * 0.75 + "px monospace";
-    ctx.fillText("HIGH SCORE: " + scoreHigh, canvas.width / 2, SHIP_SIZE);
+    ctx.font = `${TEXT_SIZE}px "Times New Roman"`; // Changed font
+    ctx.fillText("Loading Assets...", canvas.width / 2, canvas.height / 2);
+    ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
+    ctx.fillText(`(${imagesLoaded} / ${TOTAL_IMAGES_TO_LOAD} images loaded)`, canvas.width / 2, canvas.height / 2 + TEXT_SIZE);
+}
+
+function drawIntroScreen() {
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "white";
+
+    // Game Title - Adjusted Y position to move it up
+    ctx.font = `bold italic ${TEXT_SIZE * 1.5}px "Times New Roman"`; // Changed font, bold italic
+    ctx.fillText("ASTEROIDS", canvas.width / 2, canvas.height * 0.2);
+
+    // My Image - Adjusted Y position relative to canvas height
+    if (myIntroImage.complete && myIntroImage.naturalWidth !== 0) {
+        const imgWidth = myIntroImage.naturalWidth;
+        const imgHeight = myIntroImage.naturalHeight;
+        const targetWidth = 150; // Max width for the intro image
+        const scale = targetWidth / imgWidth;
+        const scaledHeight = imgHeight * scale;
+
+        ctx.drawImage(myIntroImage,
+                      canvas.width / 2 - targetWidth / 2,
+                      canvas.height * 0.4 - scaledHeight / 2, // Moved down to avoid title
+                      targetWidth,
+                      scaledHeight);
+    } else {
+        // Fallback if image isn't loaded or invalid
+        ctx.font = `${TEXT_SIZE}px "Times New Roman"`; // Changed font
+        ctx.fillText("[My Image Placeholder]", canvas.width / 2, canvas.height * 0.4);
+    }
+
+    // Created By - Adjusted Y position
+    ctx.font = `${TEXT_SIZE}px "Times New Roman"`; // Changed font
+    ctx.fillText("Created by Rayyan", canvas.width / 2, canvas.height * 0.65);
+
+    // Click/Tap to Start - Adjusted Y position
+    ctx.font = `italic ${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font, italic
+    ctx.fillText("Click / Tap to Start", canvas.width / 2, canvas.height * 0.85);
+}
 
 
-    // Draw lives (using a simplified ship drawing)
-    let lifeColor;
-    for (let i = 0; i < lives; i++) {
-        lifeColor = ship.exploding && i == lives - 1 ? "red" : "white";
-        drawShipLifeIcon(SHIP_SIZE + i * SHIP_SIZE * 1.2, SHIP_SIZE, 0.5 * Math.PI, lifeColor);
+function handleIntroClick(/** @type {MouseEvent | TouchEvent} */ ev) {
+    if (gameState === GAME_STATE.INTRO) {
+        // Prevent default actions for clicks/taps on the intro screen
+        ev.preventDefault();
+        // Start the game
+        newGame();
     }
 }
+
 
 function drawStars() {
     ctx.fillStyle = "white";
@@ -658,10 +766,19 @@ function drawShipLifeIcon(x, y, angle, color = "white") {
 
 // --- INPUT HANDLING ---
 function keyDown(/** @type {KeyboardEvent} */ ev) {
-    if (gameOver) {
+    // If game over, any key restarts the game (keyboard input for intro/game over)
+    if (gameOver && gameState === GAME_STATE.GAME_OVER) {
         newGame();
         return;
     }
+    // If in intro, any key starts the game
+    if (gameState === GAME_STATE.INTRO) {
+        newGame();
+        return;
+    }
+    // If loading, ignore keys
+    if (gameState === GAME_STATE.LOADING) return;
+
     // Prevent default browser actions for game keys (e.g., spacebar scrolling)
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "w", "a", "s", "d"].includes(ev.key)) {
         ev.preventDefault();
@@ -691,10 +808,12 @@ function keyDown(/** @type {KeyboardEvent} */ ev) {
 }
 
 function keyUp(/** @type {KeyboardEvent} */ ev) {
-    if (gameOver) return;
+    // Only process keyUp if playing
+    if (gameState !== GAME_STATE.PLAYING) return;
+
     // Prevent default browser actions for game keys (e.g., spacebar scrolling)
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "w", "a", "s", "d"].includes(ev.key)) {
-        ev.preventDefault(); // Still good to prevent default on keyup if it triggered something
+        ev.preventDefault();
     }
 
     switch (ev.key) {
@@ -727,8 +846,8 @@ function handleGamepadInput() {
     for (let i = 0; i < gp.length; i++) {
         let gamepad = gp[i];
         if (gamepad && gamepad.connected) {
-            // Restart game on any button press if game over
-            if (gameOver) {
+            // Restart game on any button press if game over or intro
+            if (gameState === GAME_STATE.GAME_OVER || gameState === GAME_STATE.INTRO) {
                 for (let b = 0; b < gamepad.buttons.length; b++) {
                     if (gamepad.buttons[b].pressed) {
                         newGame();
@@ -742,14 +861,20 @@ function handleGamepadInput() {
                 }
             }
 
-            // Gamepad Movement
-            keys.up = (gamepad.axes[1] < -GAMEPAD_THRESHOLD || gamepad.buttons[GAMEPAD_UP_BUTTON]?.pressed);
-            keys.down = (gamepad.axes[1] > GAMEPAD_THRESHOLD || gamepad.buttons[GAMEPAD_DOWN_BUTTON]?.pressed);
-            keys.left = (gamepad.axes[0] < -GAMEPAD_THRESHOLD || gamepad.buttons[GAMEPAD_LEFT_BUTTON]?.pressed);
-            keys.right = (gamepad.axes[0] > GAMEPAD_THRESHOLD || gamepad.buttons[GAMEPAD_RIGHT_BUTTON]?.pressed);
+            // Only process game controls if in PLAYING state
+            if (gameState === GAME_STATE.PLAYING) {
+                // Gamepad Movement
+                keys.up = (gamepad.axes[1] < -GAMEPAD_THRESHOLD || gamepad.buttons[GAMEPAD_UP_BUTTON]?.pressed);
+                keys.down = (gamepad.axes[1] > GAMEPAD_THRESHOLD || gamepad.buttons[GAMEPAD_DOWN_BUTTON]?.pressed);
+                keys.left = (gamepad.axes[0] < -GAMEPAD_THRESHOLD || gamepad.buttons[GAMEPAD_LEFT_BUTTON]?.pressed);
+                keys.right = (gamepad.axes[0] > GAMEPAD_THRESHOLD || gamepad.buttons[GAMEPAD_RIGHT_BUTTON]?.pressed);
 
-            // Gamepad Shoot
-            keys.shoot = gamepad.buttons[GAMEPAD_FIRE_BUTTON]?.pressed;
+                // Gamepad Shoot
+                keys.shoot = gamepad.buttons[GAMEPAD_FIRE_BUTTON]?.pressed;
+            } else {
+                // Reset keys if not in playing state to prevent stuck input from gamepad
+                keys.up = keys.down = keys.left = keys.right = keys.shoot = false;
+            }
         }
     }
 }
@@ -823,16 +948,22 @@ function setupTouchListeners() {
     function addTouchListeners(element, keyStateName) {
         element.addEventListener('touchstart', (e) => {
             e.preventDefault(); // Prevent default browser actions (scrolling, zooming)
-            if (gameOver) {
+            // If in intro/game over state, touch starts the game
+            if (gameState === GAME_STATE.INTRO || gameState === GAME_STATE.GAME_OVER) {
                 newGame();
                 return;
             }
+            if (gameState !== GAME_STATE.PLAYING) return; // Only apply control if playing
+
             keys[keyStateName] = true;
             element.style.backgroundColor = 'rgba(255, 255, 255, 0.4)'; // Visual feedback
         }, { passive: false }); // `passive: false` allows `preventDefault()`
 
         element.addEventListener('touchend', (e) => {
             e.preventDefault();
+            // Don't reset keys if we just started a new game from touch
+            if (gameState !== GAME_STATE.PLAYING) return;
+
             keys[keyStateName] = false;
             element.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'; // Reset visual feedback
         });
