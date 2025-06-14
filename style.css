@@ -1,57 +1,44 @@
 html, body {
     margin: 0;
-    overflow: hidden; /* Important: Prevent scrolling when content might exceed viewport */
-    height: 100%; /* Make html and body take full height */
-    width: 100%; /* Make html and body take full width */
+    overflow: hidden; /* Prevent scrolling */
+    height: 100%; /* Fill viewport */
+    width: 100%; /* Fill viewport */
     font-family: monospace;
-    background-color: #1a1a1a; /* Background color for any unused space */
+    background-color: #1a1a1a;
     color: #eee;
-    /* Prevent text selection and zoom on touch devices globally */
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
     -webkit-text-size-adjust: none;
-}
-
-body {
-    display: flex;
-    flex-direction: column;
-    justify-content: center; /* Center content vertically */
-    align-items: center; /* Center content horizontally */
-}
-
-h1 {
-    display: none; /* Hide the H1 header, game will be truly full screen */
+    display: flex; /* Ensure body is a flex container for canvas positioning */
+    justify-content: center;
+    align-items: center;
 }
 
 canvas {
     display: block; /* Remove extra space below canvas */
     background-color: #000; /* Canvas background itself */
-    /* border: 2px solid #eee; */ /* Optional: Remove if you want truly borderless full screen */
+    border: 2px solid #eee; /* Keep border for visual separation */
     touch-action: none; /* Prevent touch gestures on the canvas itself */
-
-    /* Ensure canvas takes full available space in flex container */
-    flex-grow: 1;
-    flex-shrink: 1;
-    flex-basis: auto;
-    width: 100vw;  /* Stretch to fill viewport width */
-    height: 100vh; /* Stretch to fill viewport height */
-    /* object-fit: contain; */ /* We will calculate scaling in JS for precise control */
-    margin: auto; /* Center the canvas visually if needed, though JS will set internal size to match */
+    
+    /* These properties ensure the canvas element itself covers the entire viewport */
+    position: absolute; /* Allows it to cover the whole screen */
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
 }
 
 /* On-screen touch controls styling */
 #touch-controls {
-    position: absolute;
-    /* Positioning will be entirely handled by JS for precise placement relative to canvas */
-    display: none; /* Hidden by default, shown by JS based on game state and device */
+    position: absolute; /* Positioned relative to the body/viewport */
+    /* All positioning and sizing will be handled by JavaScript */
+    display: none; /* Hidden by default, shown by JS */
     justify-content: space-between;
     pointer-events: none; /* Allow events to pass through to canvas if not on a button */
     z-index: 10; /* Ensure controls are above canvas */
-
-    /* Basic flex properties for its children. Sizing of children will be in JS or simplified CSS. */
 }
 
 /* Base style for individual touch buttons */
@@ -63,24 +50,22 @@ canvas {
     justify-content: center;
     align-items: center;
     color: white;
-    user-select: none; /* Prevent text selection */
+    user-select: none;
     cursor: pointer;
     pointer-events: auto; /* Re-enable pointer events for the buttons themselves */
     touch-action: manipulation; /* Improves responsiveness on touch devices by disabling double-tap zoom */
-
-    /* Sizes are set by JS dynamically via CSS variables */
-    width: var(--touch-button-size);
-    height: var(--touch-button-size);
-    font-size: var(--touch-font-size); /* General font size for all touch buttons */
+    /* Font size, width, height will be set by JS using px values */
 }
 
 /* Specific styling for the D-pad like left control group */
 #touch-controls > div:first-child {
     display: grid;
-    /* Grid template columns/rows and gap will be set by JS dynamically via CSS variables */
-    grid-template-columns: repeat(3, var(--touch-button-size));
-    grid-template-rows: repeat(3, var(--touch-button-size));
-    gap: var(--touch-gap-size);
+    /* Grid template columns/rows and gap will be set by JS dynamically */
+}
+
+/* Styling for the up, down, left, right buttons in the D-pad */
+#touch-up, #touch-down, #touch-left, #touch-right {
+    /* Sizes will be set by JS dynamically */
 }
 
 /* Positioning for D-pad buttons within the grid */
@@ -92,10 +77,8 @@ canvas {
 
 /* Styling for the larger fire button */
 #touch-shoot {
-    border-radius: 50%; /* Make it round */
-    width: var(--touch-shoot-size);
-    height: var(--touch-shoot-size);
-    font-size: var(--touch-shoot-font-size);
+    border-radius: 50%;
+    /* Sizes will be set by JS dynamically */
 }
 
 /* Hide the placeholder empty divs in the D-pad layout (the corners) */
@@ -104,3 +87,5 @@ canvas {
     border: none !important;
     pointer-events: none; /* Ensure no interaction */
 }
+
+/* No direct display manipulation in media queries, JS handles it */
