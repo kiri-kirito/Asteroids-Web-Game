@@ -134,8 +134,19 @@ window.onload = function() {
     setInterval(update, 1000 / FPS);
 }
 
-// Minimal resizeCanvas: only handles orientation lock and touch control visibility
 function resizeCanvas() {
+    // Set canvas size to match the CSS dimensions
+    const canvasStyle = window.getComputedStyle(canvas);
+    const width = parseInt(canvasStyle.width);
+    const height = parseInt(canvasStyle.height);
+    
+    // Only update if the size has actually changed
+    if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+    }
+
+    // Update touch controls visibility
     if (gameState === GAME_STATE.PLAYING) {
         showTouchControls();
     } else {
@@ -817,14 +828,37 @@ function drawStars() {
 }
 
 function breakAsteroid(index) {
-    let a = asteroids[index];
-    if (a.radius == Math.ceil(ASTEROID_SIZE / 4)) { // smallest asteroid
-        asteroids.splice(index, 1);
-    } else {
-        // split asteroid in two
-        asteroids.push(new Asteroid(a.x, a.y, Math.ceil(a.radius / 2)));
-        asteroids.push(new Asteroid(a.x, a.y, Math.ceil(a.radius / 2)));
-        asteroids.splice(index, 1);
+    const asteroid = asteroids[index];
+    const radius = asteroid.radius / 2;
+    
+    // Remove the original asteroid
+    asteroids.splice(index, 1);
+    
+    // Create two smaller asteroids if the original was large enough
+    if (radius > ASTEROID_SIZE / 8) {
+        // Create two new asteroids with random angles
+        const angle1 = Math.random() * Math.PI * 2;
+        const angle2 = (angle1 + Math.PI) % (Math.PI * 2);
+        
+        // Calculate new positions
+        const offset = radius * 0.8;
+        const x1 = asteroid.x + Math.cos(angle1) * offset;
+        const y1 = asteroid.y + Math.sin(angle1) * offset;
+        const x2 = asteroid.x + Math.cos(angle2) * offset;
+        const y2 = asteroid.y + Math.sin(angle2) * offset;
+        
+        // Create new asteroids
+        asteroids.push(new Asteroid(x1, y1, radius));
+        asteroids.push(new Asteroid(x2, y2, radius));
+    }
+    
+    // Update score
+    score += Math.floor((ASTEROID_SIZE / radius) * 100);
+    
+    // Check if all asteroids are destroyed
+    if (asteroids.length === 0) {
+        level++;
+        newLevel();
     }
 }
 
