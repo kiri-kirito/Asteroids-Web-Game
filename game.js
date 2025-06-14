@@ -75,12 +75,6 @@ let keys = {
     shoot: false
 };
 
-// Scale factor and offsets for drawing the game content on the canvas
-let scaleFactor = 1;
-let offsetX = 0;
-let offsetY = 0;
-
-
 // --- EVENT LISTENERS ---
 document.addEventListener("keydown", keyDown);
 document.addEventListener("keyup", keyUp);
@@ -107,8 +101,8 @@ window.onload = function() {
     canvas = document.getElementById("gameCanvas");
     ctx = canvas.getContext("2d");
 
-    // Initial canvas resize to fit screen and set up scaling
-    resizeCanvas(); // This will set canvas.width/height and calculate scaleFactor/offsets
+    // Initial canvas resize to fill window and calculate transforms
+    resizeCanvas(); 
 
     // Attempt to lock screen orientation to portrait for mobile
     if (screen.orientation && screen.orientation.lock) {
@@ -135,9 +129,9 @@ window.onload = function() {
     myIntroImage.src = MY_IMAGE_SRC;
     asteroidImage.src = ASTEROID_IMAGE_SRC; // Set asteroid image source
 
-    // Create the touch controls HTML elements and set up their listeners
-    createTouchControls();
-    setupTouchListeners(); // Setup listeners immediately after creation so they're ready, even if hidden
+    // Touch controls are now in index.html, just get references and set listeners
+    // createTouchControls() is effectively replaced by static HTML structure
+    setupTouchListeners();
 
 
     // Set up the game loop
@@ -150,19 +144,9 @@ function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    // Calculate the scale factor to fit our GAME_ACTUAL_WIDTH/HEIGHT into the new canvas dimensions
-    const scaleX = canvas.width / GAME_ACTUAL_WIDTH;
-    const scaleY = canvas.height / GAME_ACTUAL_HEIGHT;
-
-    // Use the smaller scale factor to ensure the entire game content is visible without cropping
-    scaleFactor = Math.min(scaleX, scaleY);
-
-    // Calculate offsets to center the scaled game area within the larger actual canvas
-    offsetX = (canvas.width - GAME_ACTUAL_WIDTH * scaleFactor) / 2;
-    offsetY = (canvas.height - GAME_ACTUAL_HEIGHT * scaleFactor) / 2;
-
-    // Reposition touch controls (if they exist and are visible)
-    showTouchControls(); // This function now handles sizing and positioning based on new scale
+    // Call showTouchControls to ensure its position/size is updated on resize
+    // (It will handle its own display property based on game state and device capability)
+    showTouchControls(); 
 }
 
 
@@ -854,8 +838,8 @@ function handleIntroClick(/** @type {MouseEvent | TouchEvent} */ ev) {
 
 
 function drawStars() {
-    // No ctx.save/scale/translate here - done once in update loop
-    ctx.fillStyle = "white"; // Stars are drawn relative to their own (x,y,radius)
+    // Stars are drawn relative to their own (x,y,radius) in virtual game coordinates
+    ctx.fillStyle = "white";
     for (let i = 0; i < stars.length; i++) {
         ctx.beginPath();
         ctx.arc(stars[i].x, stars[i].y, stars[i].radius, 0, Math.PI * 2, false);
@@ -877,7 +861,7 @@ function breakAsteroid(index) {
 
 // Helper function to draw a simplified ship for lives display
 function drawShipLifeIcon(x, y, angle, color = "white") {
-    // No ctx.save/scale/translate here - done once in update loop
+    // Draws relative to virtual game coordinates
     ctx.strokeStyle = color;
     ctx.lineWidth = SHIP_SIZE / 20;
 
@@ -1009,42 +993,52 @@ function handleGamepadInput() {
     }
 }
 
-// --- ON-SCREEN TOUCH CONTROLS (Dynamically created and managed) ---
+// --- ON-SCREEN TOUCH CONTROLS (Managed by CSS for display, JS for precise sizing/positioning) ---
 
 function showTouchControls() {
     const touchControls = document.getElementById('touch-controls');
-    // Only show controls if it's a touch device based on media query
+    // Only attempt to show controls if it's a touch device based on media query
+    // This allows the CSS @media rule to toggle its initial display.
     if (touchControls && window.matchMedia("(pointer: coarse)").matches) {
-        touchControls.style.display = 'flex';
-        
-        // Calculate dimensions and positions based on the scaled game area
+        touchControls.style.display = 'flex'; // Ensure it's visible if device is touch-capable
+
         // Get the canvas's current bounding rectangle relative to the viewport
         const canvasRect = canvas.getBoundingClientRect();
         
-        // We want buttons to be positioned relative to the game's scaled content, not the raw canvas.
-        // The game content has a scaled width of GAME_ACTUAL_WIDTH * overallScale.
-        // It's centered by translatedX/Y.
+        // Calculate the responsive size for touch buttons based on the *smaller dimension* of the viewport,
+        // so they don't get too big in landscape or too small in portrait.
+        const viewportMinDim = Math.min(window.innerWidth, window.innerHeight);
 
-        // Calculate a responsive size for buttons based on the *actual height of the scaled game area*
-        // For example, buttons could be 12% of the game's scaled height.
-        const buttonScale = 0.12; // 12% of game's scaled height
-        const buttonSizePx = Math.min(canvasRect.width, canvasRect.height) * buttonScale; 
-        const fireButtonSizePx = buttonSizePx * 1.2; // Fire button slightly larger
-        const fontPx = buttonSizePx * 0.3; // Font size based on button size
-        const gapPx = buttonSizePx * 0.07; // Gap size
+        const buttonScale = 0.12; // Base scale for d-pad buttons (12% of min viewport dimension)
+        const fireButtonScale = 0.15; // Fire button slightly larger (15%)
+        const fontScale = 0.035; // Font size (3.5%)
+        const gapScale = 0.01; // Gap size (1%)
 
-        // Set CSS variables for button sizing, used by the grid layout in CSS
+        const buttonSizePx = viewportMinDim * buttonScale;
+        const fireButtonSizePx = viewportMinDim * fireButtonScale;
+        const fontPx = viewportMinDim * fontScale;
+        const gapPx = viewportMinDim * gapScale;
+
+        // Set CSS variables for touch button sizing, used by the grid layout in CSS
         document.documentElement.style.setProperty('--touch-button-size', `${buttonSizePx}px`);
         document.documentElement.style.setProperty('--touch-gap-size', `${gapPx}px`);
         document.documentElement.style.setProperty('--touch-shoot-size', `${fireButtonSizePx}px`);
         document.documentElement.style.setProperty('--touch-shoot-font-size', `${fontPx}px`);
 
         // Position the touch controls container relative to the visible game content area
-        const padding = 10; // Padding in actual screen pixels
-        touchControls.style.left = `${translatedX + padding}px`;
-        touchControls.style.bottom = `${translatedY + padding}px`;
-        touchControls.style.width = `${GAME_ACTUAL_WIDTH * overallScale - (padding * 2)}px`; // Span the game content width
-        // The height will be determined by the content
+        const paddingPx = 10; // Padding in actual screen pixels
+        // The touch controls are positioned absolutely relative to the body (viewport).
+        // We want them to be placed below the game content if in portrait,
+        // or on the sides if in landscape, but still within the black background areas.
+        // This is complex if they are outside the canvas that is centered.
+
+        // Simpler approach: position relative to the overall viewport corners,
+        // and let their calculated size determine if they fit.
+        // This ensures they are always "in the corner" of the physical screen.
+        touchControls.style.left = `${paddingPx}px`;
+        touchControls.style.bottom = `${paddingPx}px`;
+        touchControls.style.width = `calc(100% - ${paddingPx * 2}px)`; // Spans screen width
+        // Height is determined by content
     }
 }
 
@@ -1055,66 +1049,16 @@ function hideTouchControls() {
     }
 }
 
-// This function creates the HTML elements for the touch controls
+// createTouchControls is now simpler as HTML is static
 function createTouchControls() {
-    const controlsContainer = document.createElement('div');
-    controlsContainer.id = 'touch-controls';
-    controlsContainer.style.position = 'absolute';
-    // Positioning will be handled by showTouchControls for dynamic placement
-    controlsContainer.style.justifyContent = 'space-between';
-    controlsContainer.style.pointerEvents = 'none';
-    controlsContainer.style.zIndex = '10';
-
-    // Left controls (Movement D-pad style)
-    const leftControls = document.createElement('div');
-    leftControls.style.display = 'grid';
-    // Sizes for grid cells are defined in CSS using CSS variables (set by JS)
-    leftControls.style.gridTemplateColumns = 'repeat(3, var(--touch-button-size))'; 
-    leftControls.style.gridTemplateRows = 'repeat(3, var(--touch-button-size))';
-    leftControls.style.gap = 'var(--touch-gap-size)';
-    leftControls.style.pointerEvents = 'auto';
-
-    leftControls.innerHTML = `
-        <div class="touch-control-spacer"></div>
-        <div id="touch-up" class="touch-button">▲</div>
-        <div class="touch-control-spacer"></div>
-        <div id="touch-left" class="touch-button">◀</div>
-        <div class="touch-control-spacer"></div>
-        <div id="touch-right" class="touch-button">▶</div>
-        <div class="touch-control-spacer"></div>
-        <div id="touch-down" class="touch-button">▼</div>
-        <div class="touch-control-spacer"></div>
-    `;
-    controlsContainer.appendChild(leftControls);
-
-    // Right controls (Shoot button)
-    const rightControls = document.createElement('div');
-    rightControls.style.display = 'flex';
-    rightControls.style.alignItems = 'flex-end';
-    rightControls.style.pointerEvents = 'auto';
-
-    const shootButton = document.createElement('div');
-    shootButton.id = 'touch-shoot';
-    shootButton.className = 'touch-button';
-    shootButton.textContent = 'FIRE';
-    shootButton.style.borderRadius = '50%';
-    // Specific sizes for shoot button defined in CSS variables
-    shootButton.style.width = 'var(--touch-shoot-size)';
-    shootButton.style.height = 'var(--touch-shoot-size)';
-    shootButton.style.fontSize = 'var(--touch-shoot-font-size)';
-
-    rightControls.appendChild(shootButton);
-    controlsContainer.appendChild(rightControls);
-
-    document.body.appendChild(controlsContainer);
-
-    // Call setupTouchListeners immediately after creating controls
-    setupTouchListeners();
+    // This function is now effectively a placeholder as the HTML is static.
+    // Its purpose here is simply to attach listeners via setupTouchListeners.
 }
 
 
 // This function sets up the event listeners for the touch controls
 function setupTouchListeners() {
+    // Get elements directly as they are now static in HTML
     const touchUp = document.getElementById('touch-up');
     const touchDown = document.getElementById('touch-down');
     const touchLeft = document.getElementById('touch-left');
@@ -1123,6 +1067,8 @@ function setupTouchListeners() {
 
     // Helper to add touch event listeners to a button
     function addTouchListeners(element, keyStateName) {
+        if (!element) return; // Ensure element exists (especially if you remove buttons for specific views)
+
         element.addEventListener('touchstart', (e) => {
             e.preventDefault(); // Prevent default browser actions (scrolling, zooming)
             // If in intro/game over state, touch starts the game
