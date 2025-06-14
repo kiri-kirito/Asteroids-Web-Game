@@ -1,20 +1,20 @@
 // --- GAME CONSTANTS ---
 const FPS = 30; // frames per second
-const GAME_WIDTH = 800; // Internal game resolution width
-const GAME_HEIGHT = 600; // Internal game resolution height
-const SHIP_SIZE = 30; // ship base size in pixels (height)
-const SHIP_SPEED = 200; // ship movement speed in pixels per second
-const BULLET_SPEED = 500; // bullet speed in pixels per second
+const GAME_ACTUAL_WIDTH = 800; // Internal game resolution width (virtual pixels)
+const GAME_ACTUAL_HEIGHT = 600; // Internal game resolution height (virtual pixels)
+const SHIP_SIZE = 30; // ship base size in virtual pixels (height)
+const SHIP_SPEED = 200; // ship movement speed in virtual pixels per second
+const BULLET_SPEED = 500; // bullet speed in virtual pixels per second
 const BULLET_MAX_DIST = 0.4; // max distance a bullet can travel as fraction of screen width
 const BULLET_EXPLODE_TIME = 0.1; // time in seconds for bullet explosion animation
-const ASTEROID_NUM = 3; // initial number of asteroids
-const ASTEROID_SPEED = 50; // max initial speed of asteroids in pixels per second
-const ASTEROID_SIZE = 100; // starting size of asteroids in pixels
-const ASTEROID_VERTICES = 10; // avg number of vertices on each asteroid
+const ASTEROID_NUM = 5; // Initial number of asteroids
+const ASTEROID_SPEED = 50; // max initial speed of asteroids in virtual pixels per second
+const ASTEROID_SIZE = 100; // starting size of asteroids in virtual pixels (max radius for largest asteroid)
+const ASTEROID_VERTICES = 10; // avg number of vertices on each asteroid (used for shape)
 const ASTEROID_JAGGEDNESS = 0.4; // jaggedness of the asteroids (0 = smooth, 1 = very jagged)
 const GAME_LIVES = 3; // starting number of lives
 const TEXT_FADE_TIME = 2.5; // text fade time in seconds
-const TEXT_SIZE = 40; // text font size in pixels
+const TEXT_SIZE = 40; // text font size in virtual pixels
 const GAME_OVER_TEXT = "GAME OVER";
 const SAVE_HIGH_SCORE_NAME = "asteroids_high_score";
 
@@ -31,12 +31,13 @@ const NUM_STARS = 100;
 const STAR_SIZE_MIN = 1;
 const STAR_SIZE_MAX = 3;
 const SHOOTING_STAR_CHANCE = 0.005; // Chance per frame for a shooting star
-const SHOOTING_STAR_SPEED = 300; // Pixels per second
-const SHOOTING_STAR_LENGTH = 100; // Pixels
+const SHOOTING_STAR_SPEED = 300; // Virtual pixels per second
+const SHOOTING_STAR_LENGTH = 100; // Virtual pixels
 
 // Image Paths (IMPORTANT: Update these if your image names/paths are different)
 const WATERMARK_IMAGE_SRC = "./image/• 𝘒𝘢𝘮𝘰𝘯𝘰𝘩𝘢𝘴𝘩𝘪 𝘙𝘰𝘯.jpeg";
-const MY_IMAGE_SRC = "./image/• 𝘒𝘢𝘮𝘰𝘯𝘰𝘩𝘢𝘴𝘩𝘪 𝘙𝘰𝘯.jpeg"; // Your personal image for intro screen
+const MY_IMAGE_SRC = "./image/• 𝘒𝘢𝘮𝘰𝘯𝘰𝘩𝘢𝘴𝘩𝘪 𝘙𝘰𝘯.jpeg";
+const ASTEROID_IMAGE_SRC = "./image/beluga-beluga-cat.gif";
 
 // --- GAME VARIABLES ---
 let canvas, ctx;
@@ -55,8 +56,9 @@ let gameOver;
 let gamepads = {}; // To store connected gamepads
 let watermarkImage = new Image();
 let myIntroImage = new Image();
+let asteroidImage = new Image(); // Asteroid image object
 let imagesLoaded = 0; // Counter for image loading
-const TOTAL_IMAGES_TO_LOAD = 2; // Adjust if you add more images
+const TOTAL_IMAGES_TO_LOAD = 3; // 3 images (watermark, my_image, asteroid_image)
 
 // Game States
 const GAME_STATE = {
@@ -72,6 +74,9 @@ let keys = {
     up: false, down: false, left: false, right: false,
     shoot: false
 };
+
+// Scaling factor for drawing
+let scaleRatio = 1;
 
 // --- EVENT LISTENERS ---
 document.addEventListener("keydown", keyDown);
@@ -110,40 +115,58 @@ window.onload = function() {
     // Load images
     watermarkImage.onload = imageLoadHandler;
     myIntroImage.onload = imageLoadHandler;
+    asteroidImage.onload = imageLoadHandler; // Load asteroid image
     watermarkImage.src = WATERMARK_IMAGE_SRC;
     myIntroImage.src = MY_IMAGE_SRC;
+    asteroidImage.src = ASTEROID_IMAGE_SRC; // Set asteroid image source
 
     // Create the touch controls HTML elements and set up their listeners
     createTouchControls();
-    // Touch controls are hidden by default via CSS; JS will manage display.
-    // We don't call setupTouchListeners here anymore, but after controls are shown.
+    // Setup listeners immediately after creation so they're ready, even if hidden
+    setupTouchListeners();
+
 
     // Set up the game loop
     setInterval(update, 1000 / FPS);
 }
 
 function resizeCanvas() {
-    let aspectRatio = GAME_WIDTH / GAME_HEIGHT;
-    let newWidth, newHeight;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
 
-    // Prioritize fitting within the window's width
-    newWidth = window.innerWidth;
-    newHeight = window.innerWidth / aspectRatio;
+    const aspectRatio = GAME_ACTUAL_WIDTH / GAME_ACTUAL_HEIGHT;
 
-    // If height is too big, fit within window's height
-    if (newHeight > window.innerHeight) {
-        newHeight = window.innerHeight;
-        newWidth = window.innerHeight * aspectRatio;
+    let newWidth = viewportWidth;
+    let newHeight = viewportWidth / aspectRatio;
+
+    if (newHeight > viewportHeight) {
+        newHeight = viewportHeight;
+        newWidth = viewportHeight * aspectRatio;
     }
 
-    // Set canvas display size (CSS pixels)
+    // Set canvas's CSS dimensions (what the browser renders)
     canvas.style.width = newWidth + 'px';
     canvas.style.height = newHeight + 'px';
 
-    // Set internal drawing resolution (actual pixels)
-    // This maintains game clarity regardless of display size
-    canvas.width = GAME_WIDTH;
-    canvas.height = GAME_HEIGHT;
+    // Set canvas's internal drawing resolution (actual pixels)
+    // This allows for drawing at 1:1 pixel ratio for crispness.
+    // Then we calculate a scaling ratio based on the virtual game size.
+    canvas.width = newWidth;
+    canvas.height = newHeight;
+
+    // Calculate the scaling ratio for drawing operations
+    scaleRatio = newWidth / GAME_ACTUAL_WIDTH;
+
+    // Reposition touch controls (if they exist)
+    const touchControls = document.getElementById('touch-controls');
+    if (touchControls) {
+        // Position relative to the *canvas* bottom edge
+        // Calculate the canvas's actual bottom position on the screen
+        const canvasRect = canvas.getBoundingClientRect();
+        touchControls.style.bottom = (viewportHeight - canvasRect.bottom + 10) + 'px'; // 10px padding from canvas bottom
+        touchControls.style.left = (canvasRect.left + 10) + 'px'; // 10px padding from canvas left
+        touchControls.style.right = (viewportWidth - canvasRect.right + 10) + 'px'; // 10px padding from canvas right
+    }
 }
 
 
@@ -179,8 +202,9 @@ function createAsteroids() {
     let x, y;
     for (let i = 0; i < ASTEROID_NUM + level; i++) {
         do {
-            x = Math.floor(Math.random() * canvas.width);
-            y = Math.floor(Math.random() * canvas.height);
+            // Asteroids created relative to GAME_ACTUAL_WIDTH/HEIGHT
+            x = Math.floor(Math.random() * GAME_ACTUAL_WIDTH);
+            y = Math.floor(Math.random() * GAME_ACTUAL_HEIGHT);
         } while (distBetweenPoints(ship.x, ship.y, x, y) < ASTEROID_SIZE * 2 + ship.radius); // Ensure asteroids don't spawn on ship
         asteroids.push(new Asteroid(x, y, Math.ceil(ASTEROID_SIZE / 2))); // initial size is half ASTEROID_SIZE, will be multiplied by 2 later
     }
@@ -190,9 +214,9 @@ function createStars() {
     stars = [];
     for (let i = 0; i < NUM_STARS; i++) {
         stars.push({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            radius: Math.random() * (STAR_SIZE_MAX - STAR_SIZE_MIN) + STAR_SIZE_MIN
+            x: Math.random() * GAME_ACTUAL_WIDTH,
+            y: Math.random() * GAME_ACTUAL_HEIGHT,
+            radius: Math.random() * (STAR_SIZE_MIN - STAR_SIZE_MIN) + STAR_SIZE_MIN
         });
     }
 }
@@ -207,8 +231,8 @@ function gameOverScreen() {
 
 // --- SHIP OBJECT ---
 function Ship() {
-    this.x = canvas.width / 2;
-    this.y = canvas.height / 2;
+    this.x = GAME_ACTUAL_WIDTH / 2;
+    this.y = GAME_ACTUAL_HEIGHT / 2;
     this.radius = SHIP_SIZE / 2;
     this.angle = 90 / 180 * Math.PI; // default facing up (90 deg)
     this.vel = { x: 0, y: 0 }; // Velocity for absolute movement
@@ -221,6 +245,9 @@ function Ship() {
     this.shootTimer = 0;
 
     this.draw = function() {
+        ctx.save(); // Save context before scaling
+        ctx.scale(scaleRatio, scaleRatio); // Apply scaling
+
         if (!this.exploding && (this.blinkOn || this.blinkNum == 0)) {
             // Draw a more spaceship-like design
             ctx.strokeStyle = "white";
@@ -280,6 +307,7 @@ function Ship() {
             ctx.arc(this.x, this.y, this.radius * 0.5, 0, Math.PI * 2, false);
             ctx.fill();
         }
+        ctx.restore(); // Restore context after drawing
     }
 
     this.update = function() {
@@ -336,13 +364,13 @@ function Ship() {
 
             // Handle edge of screen
             if (this.x < 0 - this.radius) {
-                this.x = canvas.width + this.radius;
-            } else if (this.x > canvas.width + this.radius) {
+                this.x = GAME_ACTUAL_WIDTH + this.radius;
+            } else if (this.x > GAME_ACTUAL_WIDTH + this.radius) {
                 this.x = 0 - this.radius;
             }
             if (this.y < 0 - this.radius) {
-                this.y = canvas.height + this.radius;
-            } else if (this.y > canvas.height + this.radius) {
+                this.y = GAME_ACTUAL_HEIGHT + this.radius;
+            } else if (this.y > GAME_ACTUAL_HEIGHT + this.radius) {
                 this.y = 0 - this.radius;
             }
 
@@ -386,6 +414,9 @@ function Bullet(x, y, angle) {
     this.explodeTime = 0;
 
     this.draw = function() {
+        ctx.save(); // Save context before scaling
+        ctx.scale(scaleRatio, scaleRatio); // Apply scaling
+
         if (this.explodeTime == 0) {
             ctx.fillStyle = "lime";
             ctx.beginPath();
@@ -405,6 +436,7 @@ function Bullet(x, y, angle) {
             ctx.arc(this.x, this.y, this.radius * 0.25, 0, Math.PI * 2, false);
             ctx.fill();
         }
+        ctx.restore(); // Restore context after drawing
     }
 
     this.update = function() {
@@ -419,18 +451,18 @@ function Bullet(x, y, angle) {
 
         // Handle edge of screen
         if (this.x < 0) {
-            this.x = canvas.width;
-        } else if (this.x > canvas.width) {
+            this.x = GAME_ACTUAL_WIDTH;
+        } else if (this.x > GAME_ACTUAL_WIDTH) {
             this.x = 0;
         }
         if (this.y < 0) {
-            this.y = canvas.height;
-        } else if (this.y > canvas.height) {
+            this.y = GAME_ACTUAL_HEIGHT;
+        } else if (this.y > GAME_ACTUAL_HEIGHT) {
             this.y = 0;
         }
 
         // Remove bullet if it traveled too far
-        if (this.distTraveled > BULLET_MAX_DIST * canvas.width) {
+        if (this.distTraveled > BULLET_MAX_DIST * GAME_ACTUAL_WIDTH) {
             let index = bullets.indexOf(this);
             if (index > -1) {
                 bullets.splice(index, 1);
@@ -457,6 +489,7 @@ function Asteroid(x, y, radius) {
     this.angle = Math.random() * Math.PI * 2; // in radians
     this.rotationSpeed = Math.random() * ASTEROID_SPEED / FPS * (Math.random() < 0.5 ? 1 : -1);
 
+    // Vertices and jaggedness are now used for the polygonal shape
     this.vertices = Math.floor(Math.random() * (ASTEROID_VERTICES + 1) + ASTEROID_VERTICES / 2);
     this.offsets = [];
     for (let i = 0; i < this.vertices; i++) {
@@ -464,41 +497,85 @@ function Asteroid(x, y, radius) {
     }
 
     this.draw = function() {
-        ctx.strokeStyle = "slategrey";
-        ctx.lineWidth = SHIP_SIZE / 20;
+        ctx.save(); // Save context before scaling and transforming
+        ctx.scale(scaleRatio, scaleRatio); // Apply global scaling
 
-        // draw a path
+        // Translate to asteroid's center, rotate it
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        // Create the irregular polygonal path
         ctx.beginPath();
-        ctx.moveTo(
-            this.x + this.radius * this.offsets[0] * Math.cos(this.angle),
-            this.y + this.radius * this.offsets[0] * Math.sin(this.angle)
+        ctx.moveTo( // First vertex
+            this.radius * this.offsets[0] * Math.cos(0),
+            this.radius * this.offsets[0] * Math.sin(0)
         );
-
-        // draw the polygon
         for (let i = 1; i < this.vertices; i++) {
-            ctx.lineTo(
-                this.x + this.radius * this.offsets[i] * Math.cos(this.angle + i * Math.PI * 2 / this.vertices),
-                this.y + this.radius * this.offsets[i] * Math.sin(this.angle + i * Math.PI * 2 / this.vertices)
+            ctx.lineTo( // Other vertices
+                this.radius * this.offsets[i] * Math.cos(i * Math.PI * 2 / this.vertices),
+                this.radius * this.offsets[i] * Math.sin(i * Math.PI * 2 / this.vertices)
             );
         }
         ctx.closePath();
+
+        // Check if asteroid image is loaded before attempting to fill
+        if (asteroidImage.complete && asteroidImage.naturalWidth !== 0) {
+            ctx.clip(); // Clip everything outside this path
+
+            // Draw the image. It will only be visible within the clipped region.
+            // Position it to roughly center over the asteroid's visual area.
+            // Adjust the image size relative to the asteroid's radius.
+            const imgDisplaySize = this.radius * 2; // Roughly the diameter of the asteroid
+            ctx.drawImage(asteroidImage, -imgDisplaySize / 2, -imgDisplaySize / 2, imgDisplaySize, imgDisplaySize);
+
+            ctx.restore(); // Restore context to remove clipping path
+            ctx.save(); // Save again for drawing outline *without* clipping
+            ctx.scale(scaleRatio, scaleRatio); // Re-apply global scaling
+            ctx.translate(this.x, this.y); // Re-translate for outline
+            ctx.rotate(this.angle); // Re-rotate for outline
+
+            // Redraw the path for the outline (after clipping and image draw)
+            ctx.beginPath();
+            ctx.moveTo(
+                this.radius * this.offsets[0] * Math.cos(0),
+                this.radius * this.offsets[0] * Math.sin(0)
+            );
+            for (let i = 1; i < this.vertices; i++) {
+                ctx.lineTo(
+                    this.radius * this.offsets[i] * Math.cos(i * Math.PI * 2 / this.vertices),
+                    this.radius * this.offsets[i] * Math.sin(i * Math.PI * 2 / this.vertices)
+                );
+            }
+            ctx.closePath();
+            
+        } else {
+            // Fallback to solid color fill if image not loaded or invalid
+            ctx.fillStyle = "slategrey";
+            ctx.fill(); // Fill the current path with solid color
+        }
+        
+        // Draw the outline (applies to both image-filled and fallback solid asteroids)
+        ctx.strokeStyle = "white"; // Or a darker grey if you want more contrast
+        ctx.lineWidth = SHIP_SIZE / 40; // Thinner line for detail
         ctx.stroke();
+
+        ctx.restore(); // Final restore context after drawing
     }
 
     this.update = function() {
         this.x += this.velX;
         this.y += this.velY;
-        this.angle += this.rotationSpeed / FPS; // Rotate the asteroid
+        this.angle += this.rotationSpeed / FPS; // Rotate the image
 
         // Handle edge of screen
         if (this.x < 0 - this.radius) {
-            this.x = canvas.width + this.radius;
-        } else if (this.x > canvas.width + this.radius) {
+            this.x = GAME_ACTUAL_WIDTH + this.radius;
+        } else if (this.x > GAME_ACTUAL_WIDTH + this.radius) {
             this.x = 0 - this.radius;
         }
         if (this.y < 0 - this.radius) {
-            this.y = canvas.height + this.radius;
-        } else if (this.y > canvas.height + this.radius) {
+            this.y = GAME_ACTUAL_HEIGHT + this.radius;
+        } else if (this.y > GAME_ACTUAL_HEIGHT + this.radius) {
             this.y = 0 - this.radius;
         }
     }
@@ -529,31 +606,33 @@ function update() {
         case GAME_STATE.PLAYING:
         case GAME_STATE.GAME_OVER: // Game over screen will still draw game elements underneath
             // Generate and draw shooting stars (only in playing/game over state)
+            ctx.save(); // Save context before scaling
+            ctx.scale(scaleRatio, scaleRatio); // Apply scaling
             if (Math.random() < SHOOTING_STAR_CHANCE) {
                 let side = Math.floor(Math.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
                 let x, y, dx, dy;
                 switch (side) {
                     case 0: // Top
-                        x = Math.random() * canvas.width;
+                        x = Math.random() * GAME_ACTUAL_WIDTH;
                         y = -SHOOTING_STAR_LENGTH;
                         dx = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
                         dy = (Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
                         break;
                     case 1: // Right
-                        x = canvas.width + SHOOTING_STAR_LENGTH;
-                        y = Math.random() * canvas.height;
+                        x = GAME_ACTUAL_WIDTH + SHOOTING_STAR_LENGTH;
+                        y = Math.random() * GAME_ACTUAL_HEIGHT;
                         dx = -(Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
                         dy = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
                         break;
                     case 2: // Bottom
-                        x = Math.random() * canvas.width;
-                        y = canvas.height + SHOOTING_STAR_LENGTH;
+                        x = Math.random() * GAME_ACTUAL_WIDTH;
+                        y = GAME_ACTUAL_HEIGHT + SHOOTING_STAR_LENGTH;
                         dx = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
                         dy = -(Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
                         break;
                     case 3: // Left
                         x = -SHOOTING_STAR_LENGTH;
-                        y = Math.random() * canvas.height;
+                        y = Math.random() * GAME_ACTUAL_HEIGHT;
                         dx = (Math.random() * 0.5 + 0.5) * SHOOTING_STAR_SPEED / FPS;
                         dy = (Math.random() - 0.5) * SHOOTING_STAR_SPEED / FPS;
                         break;
@@ -572,7 +651,7 @@ function update() {
                 ss.y += ss.dy;
                 ss.alpha -= ss.fadeRate;
 
-                if (ss.alpha <= 0 || ss.x < -ss.length || ss.x > canvas.width + ss.length || ss.y < -ss.length || ss.y > canvas.height + ss.length) {
+                if (ss.alpha <= 0 || ss.x < -ss.length || ss.x > GAME_ACTUAL_WIDTH + ss.length || ss.y < -ss.length || ss.y > GAME_ACTUAL_HEIGHT + ss.length) {
                     shootingStars.splice(i, 1);
                 } else {
                     ctx.strokeStyle = "rgba(255, 255, 200, " + ss.alpha + ")";
@@ -586,6 +665,7 @@ function update() {
                     ctx.stroke();
                 }
             }
+            ctx.restore(); // Restore context after drawing shooting stars
 
             handleGamepadInput(); // Process gamepad input if playing/game over
             
@@ -636,93 +716,115 @@ function update() {
             }
 
             // Draw game elements (ship, bullets, asteroids) for both PLAYING and GAME_OVER
-            ship.draw();
+            ship.draw(); // Ship draw already handles its own scaling
             for (let i = bullets.length - 1; i >= 0; i--) {
-                bullets[i].draw();
+                bullets[i].draw(); // Bullet draw already handles its own scaling
             }
             for (let i = asteroids.length - 1; i >= 0; i--) {
-                asteroids[i].draw();
+                asteroids[i].draw(); // Asteroid draw already handles its own scaling
             }
             
             // Draw score, high score, lives (always visible during gameplay & game over)
+            ctx.save(); // Save context before scaling for HUD
+            ctx.scale(scaleRatio, scaleRatio); // Apply scaling for HUD
+
             ctx.textAlign = "right";
             ctx.textBaseline = "middle";
             ctx.fillStyle = "white";
             ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
-            ctx.fillText("SCORE: " + score, canvas.width - SHIP_SIZE / 2, SHIP_SIZE);
+            ctx.fillText("SCORE: " + score, GAME_ACTUAL_WIDTH - SHIP_SIZE / 2, SHIP_SIZE);
 
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillStyle = "white";
             ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
-            ctx.fillText("HIGH SCORE: " + scoreHigh, canvas.width / 2, SHIP_SIZE);
+            ctx.fillText("HIGH SCORE: " + scoreHigh, GAME_ACTUAL_WIDTH / 2, SHIP_SIZE);
 
             let lifeColor;
             for (let i = 0; i < lives; i++) {
                 lifeColor = ship.exploding && i == lives - 1 ? "red" : "white";
-                drawShipLifeIcon(SHIP_SIZE + i * SHIP_SIZE * 1.2, SHIP_SIZE, 0.5 * Math.PI, lifeColor);
+                drawShipLifeIcon(SHIP_SIZE + i * SHIP_SIZE * 1.2, SHIP_SIZE, 0.5 * Math.PI, lifeColor); // Life icon draw handles its own scaling
             }
+            ctx.restore(); // Restore context after drawing HUD
 
             // Draw game over text if applicable
             if (gameOver) {
+                ctx.save(); // Save context for text scaling
+                ctx.scale(scaleRatio, scaleRatio); // Apply scaling for text
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
                 ctx.fillStyle = "white";
                 ctx.font = `bold ${TEXT_SIZE}px "Times New Roman"`; // Changed font, bold for game over
-                ctx.fillText(GAME_OVER_TEXT, canvas.width / 2, canvas.height * 0.75);
+                ctx.fillText(GAME_OVER_TEXT, GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.75);
                 ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
-                ctx.fillText("Press Any Key or Gamepad Button to Restart", canvas.width / 2, canvas.height * 0.85);
+                ctx.fillText("Press Any Key or Gamepad Button to Restart", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.85);
 
                 if (score > scoreHigh) {
                     scoreHigh = score;
                     localStorage.setItem(SAVE_HIGH_SCORE_NAME, scoreHigh);
                 }
+                ctx.restore(); // Restore context after text scaling
             } else if (textAlpha >= 0) { // Draw level text if not game over
+                ctx.save(); // Save context for text scaling
+                ctx.scale(scaleRatio, scaleRatio); // Apply scaling for text
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
                 ctx.fillStyle = "rgba(255, 255, 255, " + textAlpha + ")";
                 ctx.font = `bold ${TEXT_SIZE}px "Times New Roman"`; // Changed font, bold for level
-                ctx.fillText(text, canvas.width / 2, canvas.height * 0.75);
+                ctx.fillText(text, GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.75);
                 textAlpha -= (1.0 / TEXT_FADE_TIME / FPS);
+                ctx.restore(); // Restore context after text scaling
             }
             
             // Draw Watermark Image (only in playing/game over states)
             if (watermarkImage.complete && watermarkImage.naturalWidth !== 0) {
+                ctx.save(); // Save context for watermark scaling
+                ctx.scale(scaleRatio, scaleRatio); // Apply scaling for watermark
+
                 const originalWidth = watermarkImage.naturalWidth;
                 const originalHeight = watermarkImage.naturalHeight;
-                const targetWidth = 60; // Adjusted target width
+                const targetWidth = 60; // Adjusted target width (virtual pixels)
                 const scaleFactor = targetWidth / originalWidth;
                 const targetHeight = originalHeight * scaleFactor;
 
-                const wmX = canvas.width - targetWidth - 10; // 10px padding from right edge
-                const wmY = canvas.height - targetHeight - 10; // 10px padding from bottom edge
+                // Position in virtual game coordinates
+                const wmX = GAME_ACTUAL_WIDTH - targetWidth - 10; // 10px padding from right edge
+                const wmY = GAME_ACTUAL_HEIGHT - targetHeight - 10; // 10px padding from bottom edge
 
                 ctx.globalAlpha = 0.3; // Make it semi-transparent
                 ctx.drawImage(watermarkImage, wmX, wmY, targetWidth, targetHeight);
                 ctx.globalAlpha = 1.0; // Reset alpha for other drawings
+                ctx.restore(); // Restore context after watermark scaling
             }
             break;
     }
 }
 
 function drawLoadingScreen() {
+    ctx.save(); // Save context for scaling
+    ctx.scale(scaleRatio, scaleRatio); // Apply scaling
+
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "white";
     ctx.font = `${TEXT_SIZE}px "Times New Roman"`; // Changed font
-    ctx.fillText("Loading Assets...", canvas.width / 2, canvas.height / 2);
+    ctx.fillText("Loading Assets...", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT / 2);
     ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
-    ctx.fillText(`(${imagesLoaded} / ${TOTAL_IMAGES_TO_LOAD} images loaded)`, canvas.width / 2, canvas.height / 2 + TEXT_SIZE);
+    ctx.fillText(`(${imagesLoaded} / ${TOTAL_IMAGES_TO_LOAD} images loaded)`, GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT / 2 + TEXT_SIZE);
+    ctx.restore(); // Restore context
 }
 
 function drawIntroScreen() {
+    ctx.save(); // Save context for scaling
+    ctx.scale(scaleRatio, scaleRatio); // Apply scaling
+
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "white";
 
     // Game Title - Adjusted Y position to move it up
     ctx.font = `bold italic ${TEXT_SIZE * 1.5}px "Times New Roman"`; // Changed font, bold italic
-    ctx.fillText("ASTEROIDS", canvas.width / 2, canvas.height * 0.2);
+    ctx.fillText("ASTEROIDS", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.2);
 
     // My Image - Adjusted Y position relative to canvas height
     if (myIntroImage.complete && myIntroImage.naturalWidth !== 0) {
@@ -733,29 +835,31 @@ function drawIntroScreen() {
         const scaledHeight = imgHeight * scale;
 
         ctx.drawImage(myIntroImage,
-                      canvas.width / 2 - targetWidth / 2,
-                      canvas.height * 0.4 - scaledHeight / 2, // Moved down to avoid title
+                      GAME_ACTUAL_WIDTH / 2 - targetWidth / 2,
+                      GAME_ACTUAL_HEIGHT * 0.35 - scaledHeight / 2, // Moved down to avoid title
                       targetWidth,
                       scaledHeight);
     } else {
         // Fallback if image isn't loaded or invalid
         ctx.font = `${TEXT_SIZE}px "Times New Roman"`; // Changed font
-        ctx.fillText("[My Image Placeholder]", canvas.width / 2, canvas.height * 0.4);
+        ctx.fillText("[My Image Placeholder]", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.35);
     }
 
     // Created By - Adjusted Y position
     ctx.font = `${TEXT_SIZE}px "Times New Roman"`; // Changed font
-    ctx.fillText("Created by Rayyan", canvas.width / 2, canvas.height * 0.65);
+    ctx.fillText("Created by Rayyan", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.65);
 
     // Click/Tap to Start - Adjusted Y position
     ctx.font = `italic ${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font, italic
-    ctx.fillText("Click / Tap to Start", canvas.width / 2, canvas.height * 0.85);
+    ctx.fillText("Click / Tap to Start", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.85);
+
+    ctx.restore(); // Restore context
 }
 
 
 function handleIntroClick(/** @type {MouseEvent | TouchEvent} */ ev) {
     // Only handle clicks/taps for starting game in intro or restarting in game over
-    if (gameState === GAME_STATE.INTRO || gameState === GAME_STATE.GAME_OVER) {
+    if (gameState === GAME_STATE.INTRO || (gameOver && gameState === GAME_STATE.GAME_OVER)) {
         ev.preventDefault(); // Prevent default browser actions
         newGame(); // Start or restart the game
     }
@@ -763,12 +867,16 @@ function handleIntroClick(/** @type {MouseEvent | TouchEvent} */ ev) {
 
 
 function drawStars() {
+    ctx.save(); // Save context before scaling
+    ctx.scale(scaleRatio, scaleRatio); // Apply scaling
+
     ctx.fillStyle = "white";
     for (let i = 0; i < stars.length; i++) {
         ctx.beginPath();
         ctx.arc(stars[i].x, stars[i].y, stars[i].radius, 0, Math.PI * 2, false);
         ctx.fill();
     }
+    ctx.restore(); // Restore context
 }
 
 function breakAsteroid(index) {
@@ -785,6 +893,9 @@ function breakAsteroid(index) {
 
 // Helper function to draw a simplified ship for lives display
 function drawShipLifeIcon(x, y, angle, color = "white") {
+    ctx.save(); // Save context before scaling
+    ctx.scale(scaleRatio, scaleRatio); // Apply scaling
+
     ctx.strokeStyle = color;
     ctx.lineWidth = SHIP_SIZE / 20;
 
@@ -803,6 +914,8 @@ function drawShipLifeIcon(x, y, angle, color = "white") {
     );
     ctx.closePath();
     ctx.stroke();
+
+    ctx.restore(); // Restore context
 }
 
 // --- INPUT HANDLING ---
@@ -920,20 +1033,11 @@ function handleGamepadInput() {
 
 function showTouchControls() {
     const touchControls = document.getElementById('touch-controls');
-    if (touchControls) {
-        // We check against (pointer: coarse) and (hover: none) to actually decide
-        // if touch controls should be shown based on device capabilities.
-        // This makes sure they don't appear on desktops even with a touch screen
-        // if a mouse is the primary input (which allows hovering).
-        if (window.matchMedia("(pointer: coarse)").matches && !window.matchMedia("(hover: none)").matches) {
-            // It's a touch device, but also has hover (like a tablet with pen or hybrid laptop)
-            // You can decide if you want touch controls here. For now, we'll still hide.
-            touchControls.style.display = 'none';
-        } else if (window.matchMedia("(pointer: coarse)").matches) { // This is for devices with coarse pointer (touch)
-            touchControls.style.display = 'flex';
-        } else {
-            touchControls.style.display = 'none'; // Not a touch device, hide
-        }
+    // This media query check ensures controls only show on actual touch devices
+    if (touchControls && window.matchMedia("(pointer: coarse)").matches) {
+        touchControls.style.display = 'flex';
+        // Re-calculate position in case window was resized while controls were hidden
+        resizeCanvas();
     }
 }
 
@@ -949,9 +1053,7 @@ function createTouchControls() {
     const controlsContainer = document.createElement('div');
     controlsContainer.id = 'touch-controls';
     controlsContainer.style.position = 'absolute';
-    controlsContainer.style.bottom = '10px';
-    controlsContainer.style.left = '10px';
-    controlsContainer.style.right = '10px';
+    // Position will be set by resizeCanvas initially and on resize
     controlsContainer.style.justifyContent = 'space-between';
     controlsContainer.style.pointerEvents = 'none';
     controlsContainer.style.zIndex = '10';
@@ -1028,15 +1130,8 @@ function setupTouchListeners() {
 
         element.addEventListener('touchend', (e) => {
             e.preventDefault();
-            // Don't reset keys if we just started a new game from touch
-            if (gameState !== GAME_STATE.PLAYING) {
-                // If the game state changes right after touchstart (e.g., to PLAYING),
-                // we still want to reset the key state, unless it was a transition *to*
-                // intro/game over from playing. This might need more specific logic
-                // if touch inputs are getting stuck due to rapid state changes.
-                // For now, simpler: if not playing, don't change key state on touchend.
-                return;
-            }
+            // Only reset keys if playing
+            if (gameState !== GAME_STATE.PLAYING) return;
 
             keys[keyStateName] = false;
             element.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'; // Reset visual feedback
