@@ -29,22 +29,20 @@ canvas {
     border: 2px solid #eee; /* Keep border for visual separation */
     touch-action: none; /* Prevent touch gestures on the canvas itself */
     
-    /* This makes the canvas scale to fit the viewport while maintaining its 800x600 aspect ratio.
-       It will add black bars (letterboxing/pillarboxing) if the aspect ratio doesn't match. */
-    width: 100vw;  /* Try to fill viewport width */
-    height: 100vh; /* Try to fill viewport height */
-    object-fit: contain; /* ESSENTIAL: Scale to fit, maintain aspect ratio, add letterboxing/pillarboxing */
-    margin: auto; /* Center the canvas if it doesn't fill the entire viewport */
+    /* Fixed size for PC, for mobile it will appear small but visible */
+    /* No object-fit: contain here. It will render at 800x600 regardless. */
 }
 
 /* On-screen touch controls styling */
 #touch-controls {
-    display: none; /* Hidden by default (for PC). Only show on touch devices via media query. */
+    display: none; /* Hidden by default (for PC). */
     flex-shrink: 0; /* Prevent controls from shrinking if space is tight */
     padding: 10px; /* Padding around the controls */
     justify-content: space-between;
     width: 100%; /* Take full width of parent (body) */
     box-sizing: border-box; /* Include padding in width calculation */
+    align-self: center; /* Center horizontally if parent allows */
+    max-width: 800px; /* Limit touch controls width to match game width if screen is huge */
 }
 
 /* Layout for the left and right control groups */
@@ -58,7 +56,7 @@ canvas {
 #touch-controls .left-controls {
     display: grid;
     /* Responsive sizing based on viewport width */
-    grid-template-columns: repeat(3, 10vw); 
+    grid-template-columns: repeat(3, 10vw); /* For mobile, these will scale */
     grid-template-rows: repeat(3, 10vw);
     gap: 1.5vw; /* Gap relative to viewport width */
     pointer-events: auto; /* Re-enable for buttons */
@@ -113,7 +111,21 @@ canvas {
         display: flex; /* Show controls on touch devices */
     }
 }
-/* For very small/tall mobile screens, adjust touch button sizing */
-/* This media query can cause issues if combined with the main canvas scaling */
-/* We will rely on vw/vh units primarily now. */
-/* You might need to adjust vw/vh values for buttons if they are too big/small. */
+/* Optional: Adjust for very small screens if 10vw is still too big/small */
+@media (max-width: 400px) { /* Example for very narrow phones */
+    #touch-controls .left-controls {
+        grid-template-columns: repeat(3, 12vw); 
+        grid-template-rows: repeat(3, 12vw);
+        gap: 2vw;
+    }
+    .touch-button {
+        width: 12vw;
+        height: 12vw;
+        font-size: 5vw;
+    }
+    .fire-button {
+        width: 18vw;
+        height: 18vw;
+        font-size: 6vw;
+    }
+}
