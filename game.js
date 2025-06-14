@@ -33,8 +33,8 @@ const SHOOTING_STAR_SPEED = 300; // Pixels per second
 const SHOOTING_STAR_LENGTH = 100; // Pixels
 
 // Image Paths (IMPORTANT: Update these if your image names/paths are different)
-const WATERMARK_IMAGE_SRC = "image/• 𝘒𝘢𝘮𝘰𝘯𝘰𝘩𝘢𝘴𝘩𝘪 𝘙𝘰𝘯.jpeg";
-const MY_IMAGE_SRC = "image/• 𝘒𝘢𝘮𝘰𝘯𝘰𝘩𝘢𝘴𝘩𝘪 𝘙𝘰𝘯.jpeg"; // Your personal image for intro screen
+const WATERMARK_IMAGE_SRC = "./image/• 𝘒𝘢𝘮𝘰𝘯𝘰𝘩𝘢𝘴𝘩𝘪 𝘙𝘰𝘯.jpeg";
+const MY_IMAGE_SRC = "./image/• 𝘒𝘢𝘮𝘰𝘯𝘰𝘩𝘢𝘴𝘩𝘪 𝘙𝘰𝘯.jpeg"; // Your personal image for intro screen
 
 // --- GAME VARIABLES ---
 let canvas, ctx;
