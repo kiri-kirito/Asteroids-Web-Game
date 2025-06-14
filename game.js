@@ -1,7 +1,8 @@
 // --- GAME CONSTANTS ---
 const FPS = 30; // frames per second
-const GAME_ACTUAL_WIDTH = 800; // Internal game resolution width (virtual pixels)
-const GAME_ACTUAL_HEIGHT = 600; // Internal game resolution height (virtual pixels)
+// Internal game resolution (virtual pixels) - Fixed size for consistent gameplay logic
+const GAME_ACTUAL_WIDTH = 800;
+const GAME_ACTUAL_HEIGHT = 600;
 const SHIP_SIZE = 30; // ship base size in virtual pixels (height)
 const SHIP_SPEED = 200; // ship movement speed in virtual pixels per second
 const BULLET_SPEED = 500; // bullet speed in virtual pixels per second
@@ -75,9 +76,6 @@ let keys = {
     shoot: false
 };
 
-// Scaling factor for drawing
-let scaleRatio = 1;
-
 // --- EVENT LISTENERS ---
 document.addEventListener("keydown", keyDown);
 document.addEventListener("keyup", keyUp);
@@ -95,7 +93,7 @@ window.addEventListener("gamepaddisconnected", (e) => {
     delete gamepads[e.gamepad.index];
 });
 
-// Window resize event for responsiveness
+// Window resize event for responsiveness (primarily for orientation lock if supported)
 window.onresize = resizeCanvas;
 
 
@@ -104,8 +102,21 @@ window.onload = function() {
     canvas = document.getElementById("gameCanvas");
     ctx = canvas.getContext("2d");
 
-    // Initial canvas resize to fit screen
-    resizeCanvas();
+    // Attempt to lock screen orientation to portrait for mobile
+    if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('portrait').then(() => {
+            console.log("Screen orientation locked to portrait.");
+        }).catch((err) => {
+            console.warn("Could not lock screen orientation:", err);
+            // Fallback for browsers that don't support lock or if user denies
+        });
+    } else {
+        console.warn("Screen Orientation API not supported.");
+    }
+
+    // Initial canvas setup (internal resolution is fixed in HTML, CSS handles display size)
+    // No need for a complex resizeCanvas call here, as it mostly handles orientation lock/visuals.
+    // The canvas.width/height is already set via HTML attributes (800x600).
 
     scoreHigh = localStorage.getItem(SAVE_HIGH_SCORE_NAME) == null ? 0 :
         parseInt(localStorage.getItem(SAVE_HIGH_SCORE_NAME));
@@ -130,43 +141,12 @@ window.onload = function() {
     setInterval(update, 1000 / FPS);
 }
 
+// Simplified resizeCanvas: now primarily handles orientation lock for mobile
 function resizeCanvas() {
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
-    const aspectRatio = GAME_ACTUAL_WIDTH / GAME_ACTUAL_HEIGHT;
-
-    let newWidth = viewportWidth;
-    let newHeight = viewportWidth / aspectRatio;
-
-    if (newHeight > viewportHeight) {
-        newHeight = viewportHeight;
-        newWidth = viewportHeight * aspectRatio;
-    }
-
-    // Set canvas's CSS dimensions (what the browser renders)
-    canvas.style.width = newWidth + 'px';
-    canvas.style.height = newHeight + 'px';
-
-    // Set canvas's internal drawing resolution (actual pixels)
-    // This allows for drawing at 1:1 pixel ratio for crispness.
-    // Then we calculate a scaling ratio based on the virtual game size.
-    canvas.width = newWidth;
-    canvas.height = newHeight;
-
-    // Calculate the scaling ratio for drawing operations
-    scaleRatio = newWidth / GAME_ACTUAL_WIDTH;
-
-    // Reposition touch controls (if they exist)
-    const touchControls = document.getElementById('touch-controls');
-    if (touchControls) {
-        // Position relative to the *canvas* bottom edge
-        // Calculate the canvas's actual bottom position on the screen
-        const canvasRect = canvas.getBoundingClientRect();
-        touchControls.style.bottom = (viewportHeight - canvasRect.bottom + 10) + 'px'; // 10px padding from canvas bottom
-        touchControls.style.left = (canvasRect.left + 10) + 'px'; // 10px padding from canvas left
-        touchControls.style.right = (viewportWidth - canvasRect.right + 10) + 'px'; // 10px padding from canvas right
-    }
+    // This function mostly remains for the orientation lock attempt
+    // and to trigger any external CSS recalculations on resize.
+    // The canvas's internal resolution (canvas.width, canvas.height) is fixed
+    // by its HTML attributes (800x600). Its visual scaling is handled by CSS (object-fit).
 }
 
 
@@ -245,9 +225,7 @@ function Ship() {
     this.shootTimer = 0;
 
     this.draw = function() {
-        ctx.save(); // Save context before scaling
-        ctx.scale(scaleRatio, scaleRatio); // Apply scaling
-
+        // No ctx.save/scale/translate here - done once in update loop
         if (!this.exploding && (this.blinkOn || this.blinkNum == 0)) {
             // Draw a more spaceship-like design
             ctx.strokeStyle = "white";
@@ -307,7 +285,6 @@ function Ship() {
             ctx.arc(this.x, this.y, this.radius * 0.5, 0, Math.PI * 2, false);
             ctx.fill();
         }
-        ctx.restore(); // Restore context after drawing
     }
 
     this.update = function() {
@@ -414,9 +391,7 @@ function Bullet(x, y, angle) {
     this.explodeTime = 0;
 
     this.draw = function() {
-        ctx.save(); // Save context before scaling
-        ctx.scale(scaleRatio, scaleRatio); // Apply scaling
-
+        // No ctx.save/scale/translate here - done once in update loop
         if (this.explodeTime == 0) {
             ctx.fillStyle = "lime";
             ctx.beginPath();
@@ -436,7 +411,6 @@ function Bullet(x, y, angle) {
             ctx.arc(this.x, this.y, this.radius * 0.25, 0, Math.PI * 2, false);
             ctx.fill();
         }
-        ctx.restore(); // Restore context after drawing
     }
 
     this.update = function() {
@@ -489,7 +463,7 @@ function Asteroid(x, y, radius) {
     this.angle = Math.random() * Math.PI * 2; // in radians
     this.rotationSpeed = Math.random() * ASTEROID_SPEED / FPS * (Math.random() < 0.5 ? 1 : -1);
 
-    // Vertices and jaggedness are now used for the polygonal shape
+    // Vertices and jaggedness are used for the polygonal shape
     this.vertices = Math.floor(Math.random() * (ASTEROID_VERTICES + 1) + ASTEROID_VERTICES / 2);
     this.offsets = [];
     for (let i = 0; i < this.vertices; i++) {
@@ -497,10 +471,8 @@ function Asteroid(x, y, radius) {
     }
 
     this.draw = function() {
-        ctx.save(); // Save context before scaling and transforming
-        ctx.scale(scaleRatio, scaleRatio); // Apply global scaling
-
-        // Translate to asteroid's center, rotate it
+        ctx.save(); // Save context before translating and rotating
+        // Translate to asteroid's center for rotation, but within the virtual game space
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
 
@@ -523,18 +495,19 @@ function Asteroid(x, y, radius) {
             ctx.clip(); // Clip everything outside this path
 
             // Draw the image. It will only be visible within the clipped region.
-            // Position it to roughly center over the asteroid's visual area.
-            // Adjust the image size relative to the asteroid's radius.
-            const imgDisplaySize = this.radius * 2; // Roughly the diameter of the asteroid
+            // Position it to cover the entire asteroid's visual area.
+            // Adjust image size relative to the asteroid's radius for appropriate coverage.
+            const imgDisplaySize = this.radius * 2.5; // Slightly larger than diameter to ensure full coverage
             ctx.drawImage(asteroidImage, -imgDisplaySize / 2, -imgDisplaySize / 2, imgDisplaySize, imgDisplaySize);
 
-            ctx.restore(); // Restore context to remove clipping path
-            ctx.save(); // Save again for drawing outline *without* clipping
-            ctx.scale(scaleRatio, scaleRatio); // Re-apply global scaling
-            ctx.translate(this.x, this.y); // Re-translate for outline
-            ctx.rotate(this.angle); // Re-rotate for outline
+            // Important: Restore the context immediately after drawing the image with clip
+            ctx.restore(); 
+            ctx.save(); // Re-save context to draw outline *without* previous clip affecting it
+            // Re-translate and re-rotate to the asteroid's position/angle for the outline
+            ctx.translate(this.x, this.y); 
+            ctx.rotate(this.angle); 
 
-            // Redraw the path for the outline (after clipping and image draw)
+            // Redraw the path for the outline (it's a new path now)
             ctx.beginPath();
             ctx.moveTo(
                 this.radius * this.offsets[0] * Math.cos(0),
@@ -551,7 +524,7 @@ function Asteroid(x, y, radius) {
         } else {
             // Fallback to solid color fill if image not loaded or invalid
             ctx.fillStyle = "slategrey";
-            ctx.fill(); // Fill the current path with solid color
+            ctx.fill(); // Fill the current path with solid color (before outline)
         }
         
         // Draw the outline (applies to both image-filled and fallback solid asteroids)
@@ -586,9 +559,35 @@ function update() {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw space background (black fill first)
+    // --- Apply global scaling and translation for the entire game frame ---
+    ctx.save(); // Save the unscaled/untranslated state
+    // Calculate scaling for the entire canvas based on current HTML dimensions
+    const currentScaleX = canvas.width / GAME_ACTUAL_WIDTH;
+    const currentScaleY = canvas.height / GAME_ACTUAL_HEIGHT;
+
+    // To maintain aspect ratio and center, use the smaller scale factor for both dimensions
+    // and then calculate offsets for centering.
+    const overallScale = Math.min(currentScaleX, currentScaleY);
+
+    // Calculate translation to center the scaled game area
+    const translatedX = (canvas.width - GAME_ACTUAL_WIDTH * overallScale) / 2;
+    const translatedY = (canvas.height - GAME_ACTUAL_HEIGHT * overallScale) / 2;
+
+    ctx.translate(translatedX, translatedY); // Apply centering translation
+    ctx.scale(overallScale, overallScale);   // Apply overall scaling
+    // Now, all drawing operations that follow will be relative to GAME_ACTUAL_WIDTH/HEIGHT
+
+
+    // Draw space background (black fill first) - NOTE: This will be behind the game content
+    // For a consistent background fill on letterboxed areas, you might need to draw this BEFORE ctx.translate/scale
+    // Or, ensure your body background color covers the letterbox areas.
+    // Let's draw it before the scaling so it covers the full browser canvas.
+    ctx.restore(); // Restore to draw full background without previous transforms
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save(); // Resave for the game content
+    ctx.translate(translatedX, translatedY);
+    ctx.scale(overallScale, overallScale);
 
     // Draw static stars
     drawStars();
@@ -605,9 +604,7 @@ function update() {
             break;
         case GAME_STATE.PLAYING:
         case GAME_STATE.GAME_OVER: // Game over screen will still draw game elements underneath
-            // Generate and draw shooting stars (only in playing/game over state)
-            ctx.save(); // Save context before scaling
-            ctx.scale(scaleRatio, scaleRatio); // Apply scaling
+            // Generate and draw shooting stars
             if (Math.random() < SHOOTING_STAR_CHANCE) {
                 let side = Math.floor(Math.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
                 let x, y, dx, dy;
@@ -665,7 +662,7 @@ function update() {
                     ctx.stroke();
                 }
             }
-            ctx.restore(); // Restore context after drawing shooting stars
+            // No ctx.restore here for shooting stars as the main transform is still active
 
             handleGamepadInput(); // Process gamepad input if playing/game over
             
@@ -716,18 +713,15 @@ function update() {
             }
 
             // Draw game elements (ship, bullets, asteroids) for both PLAYING and GAME_OVER
-            ship.draw(); // Ship draw already handles its own scaling
+            ship.draw();
             for (let i = bullets.length - 1; i >= 0; i--) {
-                bullets[i].draw(); // Bullet draw already handles its own scaling
+                bullets[i].draw();
             }
             for (let i = asteroids.length - 1; i >= 0; i--) {
-                asteroids[i].draw(); // Asteroid draw already handles its own scaling
+                asteroids[i].draw();
             }
             
             // Draw score, high score, lives (always visible during gameplay & game over)
-            ctx.save(); // Save context before scaling for HUD
-            ctx.scale(scaleRatio, scaleRatio); // Apply scaling for HUD
-
             ctx.textAlign = "right";
             ctx.textBaseline = "middle";
             ctx.fillStyle = "white";
@@ -743,14 +737,11 @@ function update() {
             let lifeColor;
             for (let i = 0; i < lives; i++) {
                 lifeColor = ship.exploding && i == lives - 1 ? "red" : "white";
-                drawShipLifeIcon(SHIP_SIZE + i * SHIP_SIZE * 1.2, SHIP_SIZE, 0.5 * Math.PI, lifeColor); // Life icon draw handles its own scaling
+                drawShipLifeIcon(SHIP_SIZE + i * SHIP_SIZE * 1.2, SHIP_SIZE, 0.5 * Math.PI, lifeColor);
             }
-            ctx.restore(); // Restore context after drawing HUD
 
             // Draw game over text if applicable
             if (gameOver) {
-                ctx.save(); // Save context for text scaling
-                ctx.scale(scaleRatio, scaleRatio); // Apply scaling for text
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
                 ctx.fillStyle = "white";
@@ -763,24 +754,17 @@ function update() {
                     scoreHigh = score;
                     localStorage.setItem(SAVE_HIGH_SCORE_NAME, scoreHigh);
                 }
-                ctx.restore(); // Restore context after text scaling
             } else if (textAlpha >= 0) { // Draw level text if not game over
-                ctx.save(); // Save context for text scaling
-                ctx.scale(scaleRatio, scaleRatio); // Apply scaling for text
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
                 ctx.fillStyle = "rgba(255, 255, 255, " + textAlpha + ")";
                 ctx.font = `bold ${TEXT_SIZE}px "Times New Roman"`; // Changed font, bold for level
                 ctx.fillText(text, GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.75);
                 textAlpha -= (1.0 / TEXT_FADE_TIME / FPS);
-                ctx.restore(); // Restore context after text scaling
             }
             
             // Draw Watermark Image (only in playing/game over states)
             if (watermarkImage.complete && watermarkImage.naturalWidth !== 0) {
-                ctx.save(); // Save context for watermark scaling
-                ctx.scale(scaleRatio, scaleRatio); // Apply scaling for watermark
-
                 const originalWidth = watermarkImage.naturalWidth;
                 const originalHeight = watermarkImage.naturalHeight;
                 const targetWidth = 60; // Adjusted target width (virtual pixels)
@@ -794,16 +778,13 @@ function update() {
                 ctx.globalAlpha = 0.3; // Make it semi-transparent
                 ctx.drawImage(watermarkImage, wmX, wmY, targetWidth, targetHeight);
                 ctx.globalAlpha = 1.0; // Reset alpha for other drawings
-                ctx.restore(); // Restore context after watermark scaling
             }
             break;
     }
+    ctx.restore(); // Restore the context for the entire frame
 }
 
 function drawLoadingScreen() {
-    ctx.save(); // Save context for scaling
-    ctx.scale(scaleRatio, scaleRatio); // Apply scaling
-
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "white";
@@ -811,13 +792,9 @@ function drawLoadingScreen() {
     ctx.fillText("Loading Assets...", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT / 2);
     ctx.font = `${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font
     ctx.fillText(`(${imagesLoaded} / ${TOTAL_IMAGES_TO_LOAD} images loaded)`, GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT / 2 + TEXT_SIZE);
-    ctx.restore(); // Restore context
 }
 
 function drawIntroScreen() {
-    ctx.save(); // Save context for scaling
-    ctx.scale(scaleRatio, scaleRatio); // Apply scaling
-
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "white";
@@ -852,8 +829,6 @@ function drawIntroScreen() {
     // Click/Tap to Start - Adjusted Y position
     ctx.font = `italic ${TEXT_SIZE * 0.75}px "Times New Roman"`; // Changed font, italic
     ctx.fillText("Click / Tap to Start", GAME_ACTUAL_WIDTH / 2, GAME_ACTUAL_HEIGHT * 0.85);
-
-    ctx.restore(); // Restore context
 }
 
 
@@ -867,16 +842,12 @@ function handleIntroClick(/** @type {MouseEvent | TouchEvent} */ ev) {
 
 
 function drawStars() {
-    ctx.save(); // Save context before scaling
-    ctx.scale(scaleRatio, scaleRatio); // Apply scaling
-
-    ctx.fillStyle = "white";
+    ctx.fillStyle = "white"; // Stars are drawn relative to their own (x,y,radius)
     for (let i = 0; i < stars.length; i++) {
         ctx.beginPath();
         ctx.arc(stars[i].x, stars[i].y, stars[i].radius, 0, Math.PI * 2, false);
         ctx.fill();
     }
-    ctx.restore(); // Restore context
 }
 
 function breakAsteroid(index) {
@@ -893,9 +864,6 @@ function breakAsteroid(index) {
 
 // Helper function to draw a simplified ship for lives display
 function drawShipLifeIcon(x, y, angle, color = "white") {
-    ctx.save(); // Save context before scaling
-    ctx.scale(scaleRatio, scaleRatio); // Apply scaling
-
     ctx.strokeStyle = color;
     ctx.lineWidth = SHIP_SIZE / 20;
 
@@ -914,8 +882,6 @@ function drawShipLifeIcon(x, y, angle, color = "white") {
     );
     ctx.closePath();
     ctx.stroke();
-
-    ctx.restore(); // Restore context
 }
 
 // --- INPUT HANDLING ---
@@ -1033,11 +999,10 @@ function handleGamepadInput() {
 
 function showTouchControls() {
     const touchControls = document.getElementById('touch-controls');
-    // This media query check ensures controls only show on actual touch devices
+    // Only show controls if it's a touch device based on media query
     if (touchControls && window.matchMedia("(pointer: coarse)").matches) {
         touchControls.style.display = 'flex';
-        // Re-calculate position in case window was resized while controls were hidden
-        resizeCanvas();
+        // The positioning logic is mostly in CSS now.
     }
 }
 
@@ -1053,7 +1018,7 @@ function createTouchControls() {
     const controlsContainer = document.createElement('div');
     controlsContainer.id = 'touch-controls';
     controlsContainer.style.position = 'absolute';
-    // Position will be set by resizeCanvas initially and on resize
+    // Positioning handled by CSS (bottom, left, right)
     controlsContainer.style.justifyContent = 'space-between';
     controlsContainer.style.pointerEvents = 'none';
     controlsContainer.style.zIndex = '10';
@@ -1061,9 +1026,10 @@ function createTouchControls() {
     // Left controls (Movement D-pad style)
     const leftControls = document.createElement('div');
     leftControls.style.display = 'grid';
-    leftControls.style.gridTemplateColumns = 'repeat(3, 70px)';
-    leftControls.style.gridTemplateRows = 'repeat(3, 70px)';
-    leftControls.style.gap = '5px';
+    // Sizes for grid cells are defined in CSS using vh units for responsiveness
+    leftControls.style.gridTemplateColumns = 'repeat(3, var(--touch-button-size, 10vh))'; 
+    leftControls.style.gridTemplateRows = 'repeat(3, var(--touch-button-size, 10vh))';
+    leftControls.style.gap = 'var(--touch-gap-size, 1vh)';
     leftControls.style.pointerEvents = 'auto';
 
     leftControls.innerHTML = `
@@ -1090,9 +1056,10 @@ function createTouchControls() {
     shootButton.className = 'touch-button';
     shootButton.textContent = 'FIRE';
     shootButton.style.borderRadius = '50%';
-    shootButton.style.width = '90px';
-    shootButton.style.height = '90px';
-    shootButton.style.fontSize = '30px';
+    // Specific sizes for shoot button defined in CSS using vh units
+    shootButton.style.width = 'var(--touch-shoot-size, 12vh)';
+    shootButton.style.height = 'var(--touch-shoot-size, 12vh)';
+    shootButton.style.fontSize = 'var(--touch-shoot-font-size, 4vh)';
 
     rightControls.appendChild(shootButton);
     controlsContainer.appendChild(rightControls);
