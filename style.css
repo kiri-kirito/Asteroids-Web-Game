@@ -29,8 +29,14 @@ canvas {
     border: 2px solid #eee; /* Keep border for visual separation */
     touch-action: none; /* Prevent touch gestures on the canvas itself */
     
-    /* Fixed size for PC, for mobile it will appear small but visible */
-    /* No object-fit: contain here. It will render at 800x600 regardless. */
+    /* Default for PC and larger screens: fixed size */
+    width: 800px;
+    height: 600px;
+    /* For responsiveness on larger screens, maintain aspect ratio */
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain; /* Scale to fit, maintain aspect ratio */
+    margin: auto; /* Center the canvas */
 }
 
 /* On-screen touch controls styling */
@@ -55,10 +61,10 @@ canvas {
 
 #touch-controls .left-controls {
     display: grid;
-    /* Responsive sizing based on viewport width */
-    grid-template-columns: repeat(3, 10vw); /* For mobile, these will scale */
-    grid-template-rows: repeat(3, 10vw);
-    gap: 1.5vw; /* Gap relative to viewport width */
+    /* Default button sizing for larger mobile screens */
+    grid-template-columns: repeat(3, 80px); /* Fixed pixel size for standard mobile */
+    grid-template-rows: repeat(3, 80px);
+    gap: 10px; 
     pointer-events: auto; /* Re-enable for buttons */
 }
 
@@ -76,10 +82,10 @@ canvas {
     pointer-events: auto;
     touch-action: manipulation;
 
-    /* Sizing for buttons based on viewport width */
-    width: 10vw;
-    height: 10vw;
-    font-size: 4vw; /* Font size relative to viewport width */
+    /* Default size for mobile buttons */
+    width: 80px;
+    height: 80px;
+    font-size: 30px; 
 }
 
 /* Positioning for D-pad buttons within the grid */
@@ -92,9 +98,9 @@ canvas {
 /* Styling for the larger fire button */
 .fire-button {
     border-radius: 50%;
-    width: 15vw; /* Larger width/height for fire button */
-    height: 15vw;
-    font-size: 5vw; /* Larger font size for fire button */
+    width: 100px; /* Larger width/height for fire button */
+    height: 100px;
+    font-size: 40px; /* Larger font size for fire button */
     margin-left: auto; /* Push to the right */
 }
 
@@ -105,27 +111,78 @@ canvas {
     pointer-events: none; /* Ensure no interaction */
 }
 
-/* Media query to show touch controls ONLY on devices with a coarse pointer (touch) */
+/* --- Media Queries for Mobile Responsiveness --- */
+
+/* For devices with touch capabilities (usually mobile/tablet) */
 @media (pointer: coarse) {
     #touch-controls {
         display: flex; /* Show controls on touch devices */
     }
-}
-/* Optional: Adjust for very small screens if 10vw is still too big/small */
-@media (max-width: 400px) { /* Example for very narrow phones */
-    #touch-controls .left-controls {
-        grid-template-columns: repeat(3, 12vw); 
-        grid-template-rows: repeat(3, 12vw);
-        gap: 2vw;
+
+    /* Adjust canvas to fill more space in portrait mobile */
+    @media (orientation: portrait) and (max-width: 800px) {
+        canvas {
+            width: 100vw; /* Canvas fills viewport width */
+            height: auto; /* Height adjusts to maintain aspect ratio */
+            flex-grow: 0; /* Don't grow aggressively in height */
+        }
+        /* Touch controls may still appear below if there's space */
+        #touch-controls {
+            width: 100vw; /* Take full viewport width */
+            max-width: none; /* Override max-width of 800px */
+        }
+        #touch-controls .left-controls {
+            grid-template-columns: repeat(3, 15vw); /* Larger buttons in portrait */
+            grid-template-rows: repeat(3, 15vw);
+            gap: 2vw;
+        }
+        .touch-button {
+            width: 15vw;
+            height: 15vw;
+            font-size: 6vw;
+        }
+        .fire-button {
+            width: 20vw;
+            height: 20vw;
+            font-size: 8vw;
+        }
     }
-    .touch-button {
-        width: 12vw;
-        height: 12vw;
-        font-size: 5vw;
-    }
-    .fire-button {
-        width: 18vw;
-        height: 18vw;
-        font-size: 6vw;
+
+    /* Adjust canvas to allow space for controls in landscape mobile */
+    @media (orientation: landscape) and (max-height: 600px) {
+        body {
+            flex-direction: row; /* Layout canvas and controls side-by-side */
+        }
+        canvas {
+            height: 100vh; /* Canvas fills viewport height */
+            width: auto; /* Width adjusts to maintain aspect ratio */
+            flex-grow: 0;
+            flex-shrink: 0;
+            max-height: 100vh;
+        }
+        #touch-controls {
+            width: auto; /* Let controls take content width */
+            height: 100vh; /* Fill viewport height */
+            padding: 10px; /* Add padding */
+            align-items: center; /* Center buttons vertically within controls */
+            flex-direction: column; /* Stack control groups vertically */
+            max-width: none;
+        }
+        #touch-controls .left-controls {
+            grid-template-columns: repeat(3, 8vh); /* Use vh for buttons in landscape */
+            grid-template-rows: repeat(3, 8vh);
+            gap: 1vh;
+            margin-bottom: 2vh; /* Space between d-pad and fire button */
+        }
+        .touch-button {
+            width: 8vh;
+            height: 8vh;
+            font-size: 3vh;
+        }
+        .fire-button {
+            width: 12vh;
+            height: 12vh;
+            font-size: 4vh;
+        }
     }
 }
