@@ -12,33 +12,63 @@ html, body {
     user-select: none;
     -webkit-touch-callout: none;
     -webkit-text-size-adjust: none;
-    display: flex; /* Ensure body is a flex container for canvas positioning */
-    justify-content: center;
-    align-items: center;
+    position: fixed; /* Prevent bouncing on iOS */
+}
+
+body {
+    display: flex;
+    flex-direction: column; /* Stack canvas and controls vertically */
+    justify-content: center; /* Center content vertically */
+    align-items: center; /* Center content horizontally */
+    min-height: 100vh; /* Ensure body takes full viewport height */
+    min-width: 100vw; /* Ensure body takes full viewport width */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 canvas {
     display: block; /* Remove extra space below canvas */
-    background-color: #000; /* Canvas background itself */
+    background-color: #000;
     border: 2px solid #eee; /* Keep border for visual separation */
     touch-action: none; /* Prevent touch gestures on the canvas itself */
     
-    /* These properties ensure the canvas element itself perfectly fills the browser window */
-    position: absolute; /* Allows it to cover the whole screen */
-    top: 0;
-    left: 0;
-    width: 100vw; /* CSS width to take full viewport */
-    height: 100vh; /* CSS height to take full viewport */
+    /* Responsive canvas sizing */
+    width: min(800px, 100vw);
+    height: min(600px, 100vh);
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain; /* Scale to fit, maintain aspect ratio */
+    margin: auto; /* Center the canvas */
 }
 
 /* On-screen touch controls styling */
 #touch-controls {
-    position: absolute; /* Positioned relative to the body/viewport */
-    /* All positioning and sizing will be handled by JavaScript for precision */
-    display: none; /* Hidden by default, shown by JS */
+    display: none; /* Hidden by default (for PC). */
+    flex-shrink: 0; /* Prevent controls from shrinking if space is tight */
+    padding: 10px; /* Padding around the controls */
     justify-content: space-between;
-    pointer-events: none; /* Allow events to pass through to canvas if not on a button */
-    z-index: 10; /* Ensure controls are above game content */
+    width: 100%; /* Take full width of parent (body) */
+    box-sizing: border-box; /* Include padding in width calculation */
+    align-self: center; /* Center horizontally if parent allows */
+    max-width: 800px; /* Limit touch controls width to match game width if screen is huge */
+    position: relative;
+    z-index: 1000;
+}
+
+/* Layout for the left and right control groups */
+#touch-controls .left-controls,
+#touch-controls .right-controls {
+    display: flex;
+    align-items: flex-end;
+    pointer-events: none; /* Allow events to pass through */
+}
+
+#touch-controls .left-controls {
+    display: grid;
+    /* Default button sizing for larger mobile screens */
+    grid-template-columns: repeat(3, 80px); /* Fixed pixel size for standard mobile */
+    grid-template-rows: repeat(3, 80px);
+    gap: 10px; 
+    pointer-events: auto; /* Re-enable for buttons */
 }
 
 /* Base style for individual touch buttons */
@@ -52,20 +82,13 @@ canvas {
     color: white;
     user-select: none;
     cursor: pointer;
-    pointer-events: auto; /* Re-enable pointer events for the buttons themselves */
-    touch-action: manipulation; /* Improves responsiveness on touch devices by disabling double-tap zoom */
-    /* Font size, width, height will be set by JS using px values dynamically */
-}
+    pointer-events: auto;
+    touch-action: manipulation;
 
-/* Specific styling for the D-pad like left control group */
-#touch-controls > div:first-child {
-    display: grid;
-    /* Grid template columns/rows and gap will be set by JS dynamically */
-}
-
-/* Styling for the up, down, left, right buttons in the D-pad */
-#touch-up, #touch-down, #touch-left, #touch-right {
-    /* Sizes will be set by JS dynamically */
+    /* Default size for mobile buttons */
+    width: 80px;
+    height: 80px;
+    font-size: 30px; 
 }
 
 /* Positioning for D-pad buttons within the grid */
@@ -76,9 +99,12 @@ canvas {
 
 
 /* Styling for the larger fire button */
-#touch-shoot {
+.fire-button {
     border-radius: 50%;
-    /* Sizes will be set by JS dynamically */
+    width: 100px; /* Larger width/height for fire button */
+    height: 100px;
+    font-size: 40px; /* Larger font size for fire button */
+    margin-left: auto; /* Push to the right */
 }
 
 /* Hide the placeholder empty divs in the D-pad layout (the corners) */
@@ -88,4 +114,108 @@ canvas {
     pointer-events: none; /* Ensure no interaction */
 }
 
-/* No direct display manipulation in media queries, JS handles it */
+/* Updated Media Queries for Mobile Responsiveness */
+@media (pointer: coarse) {
+    #touch-controls {
+        display: flex;
+    }
+
+    /* Portrait mode improvements */
+    @media (orientation: portrait) {
+        body {
+            padding: 0;
+        }
+        
+        canvas {
+            width: 100vw;
+            height: auto;
+            aspect-ratio: 4/3;
+            max-height: 70vh; /* Leave space for controls */
+        }
+
+        #touch-controls {
+            width: 100vw;
+            max-width: none;
+            padding: 10px 5vw;
+            margin-top: 10px;
+        }
+
+        #touch-controls .left-controls {
+            grid-template-columns: repeat(3, min(80px, 20vw));
+            grid-template-rows: repeat(3, min(80px, 20vw));
+            gap: min(10px, 2vw);
+        }
+
+        .touch-button {
+            width: min(80px, 20vw);
+            height: min(80px, 20vw);
+            font-size: min(30px, 8vw);
+        }
+
+        .fire-button {
+            width: min(100px, 25vw);
+            height: min(100px, 25vw);
+            font-size: min(40px, 10vw);
+        }
+    }
+
+    /* Landscape mode improvements */
+    @media (orientation: landscape) {
+        body {
+            flex-direction: row;
+            padding: 0;
+        }
+
+        canvas {
+            height: 100vh;
+            width: auto;
+            aspect-ratio: 4/3;
+            max-width: 70vw; /* Leave space for controls */
+        }
+
+        #touch-controls {
+            width: auto;
+            height: 100vh;
+            padding: 10px;
+            flex-direction: column;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        #touch-controls .left-controls {
+            grid-template-columns: repeat(3, min(60px, 15vh));
+            grid-template-rows: repeat(3, min(60px, 15vh));
+            gap: min(8px, 2vh);
+        }
+
+        .touch-button {
+            width: min(60px, 15vh);
+            height: min(60px, 15vh);
+            font-size: min(24px, 6vh);
+        }
+
+        .fire-button {
+            width: min(80px, 20vh);
+            height: min(80px, 20vh);
+            font-size: min(32px, 8vh);
+        }
+    }
+
+    /* Small screen adjustments */
+    @media (max-width: 320px) or (max-height: 480px) {
+        .touch-button {
+            border-width: 1px;
+        }
+        
+        #touch-controls {
+            padding: 5px;
+        }
+    }
+}
+
+/* Prevent unwanted zooming on double-tap */
+@media (hover: none) and (pointer: coarse) {
+    * {
+        touch-action: manipulation;
+    }
+}
