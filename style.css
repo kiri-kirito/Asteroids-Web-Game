@@ -23,6 +23,7 @@ body {
     min-height: 100vh; /* Ensure body takes full viewport height */
     min-width: 100vw; /* Ensure body takes full viewport width */
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    position: relative;
 }
 
 canvas {
@@ -31,27 +32,29 @@ canvas {
     border: 2px solid #eee; /* Keep border for visual separation */
     touch-action: none; /* Prevent touch gestures on the canvas itself */
     
-    /* Responsive canvas sizing */
-    width: min(800px, 100vw);
-    height: min(600px, 100vh);
+    /* Fixed size for PC */
+    width: 800px;
+    height: 600px;
     max-width: 100%;
     max-height: 100%;
     object-fit: contain; /* Scale to fit, maintain aspect ratio */
     margin: auto; /* Center the canvas */
+    flex-shrink: 0; /* Prevent canvas from shrinking */
 }
 
 /* On-screen touch controls styling */
 #touch-controls {
     display: none; /* Hidden by default (for PC). */
-    flex-shrink: 0; /* Prevent controls from shrinking if space is tight */
-    padding: 10px; /* Padding around the controls */
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px;
     justify-content: space-between;
-    width: 100%; /* Take full width of parent (body) */
+    width: 100%;
     box-sizing: border-box; /* Include padding in width calculation */
-    align-self: center; /* Center horizontally if parent allows */
-    max-width: 800px; /* Limit touch controls width to match game width if screen is huge */
-    position: relative;
     z-index: 1000;
+    background: rgba(0, 0, 0, 0.5);
 }
 
 /* Layout for the left and right control groups */
@@ -64,11 +67,16 @@ canvas {
 
 #touch-controls .left-controls {
     display: grid;
-    /* Default button sizing for larger mobile screens */
-    grid-template-columns: repeat(3, 80px); /* Fixed pixel size for standard mobile */
+    grid-template-columns: repeat(3, 80px);
     grid-template-rows: repeat(3, 80px);
-    gap: 10px; 
-    pointer-events: auto; /* Re-enable for buttons */
+    gap: 10px;
+    margin-left: 20px;
+}
+
+#touch-controls .right-controls {
+    margin-right: 20px;
+    display: flex;
+    align-items: center;
 }
 
 /* Base style for individual touch buttons */
@@ -84,11 +92,9 @@ canvas {
     cursor: pointer;
     pointer-events: auto;
     touch-action: manipulation;
-
-    /* Default size for mobile buttons */
     width: 80px;
     height: 80px;
-    font-size: 30px; 
+    font-size: 30px;
 }
 
 /* Positioning for D-pad buttons within the grid */
@@ -104,7 +110,6 @@ canvas {
     width: 100px; /* Larger width/height for fire button */
     height: 100px;
     font-size: 40px; /* Larger font size for fire button */
-    margin-left: auto; /* Push to the right */
 }
 
 /* Hide the placeholder empty divs in the D-pad layout (the corners) */
@@ -120,7 +125,7 @@ canvas {
         display: flex;
     }
 
-    /* Portrait mode improvements */
+    /* Portrait mode */
     @media (orientation: portrait) {
         body {
             padding: 0;
@@ -134,16 +139,14 @@ canvas {
         }
 
         #touch-controls {
-            width: 100vw;
-            max-width: none;
             padding: 10px 5vw;
-            margin-top: 10px;
         }
 
         #touch-controls .left-controls {
             grid-template-columns: repeat(3, min(80px, 20vw));
             grid-template-rows: repeat(3, min(80px, 20vw));
             gap: min(10px, 2vw);
+            margin-left: 5vw;
         }
 
         .touch-button {
@@ -156,10 +159,11 @@ canvas {
             width: min(100px, 25vw);
             height: min(100px, 25vw);
             font-size: min(40px, 10vw);
+            margin-right: 5vw;
         }
     }
 
-    /* Landscape mode improvements */
+    /* Landscape mode */
     @media (orientation: landscape) {
         body {
             flex-direction: row;
@@ -174,18 +178,21 @@ canvas {
         }
 
         #touch-controls {
-            width: auto;
+            width: 30vw;
             height: 100vh;
-            padding: 10px;
+            right: 0;
+            left: auto;
             flex-direction: column;
             justify-content: center;
             gap: 20px;
+            background: rgba(0, 0, 0, 0.5);
         }
 
         #touch-controls .left-controls {
             grid-template-columns: repeat(3, min(60px, 15vh));
             grid-template-rows: repeat(3, min(60px, 15vh));
             gap: min(8px, 2vh);
+            margin-left: 2vw;
         }
 
         .touch-button {
@@ -198,6 +205,7 @@ canvas {
             width: min(80px, 20vh);
             height: min(80px, 20vh);
             font-size: min(32px, 8vh);
+            margin-right: 2vw;
         }
     }
 
