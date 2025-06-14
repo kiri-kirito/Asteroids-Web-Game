@@ -75,6 +75,12 @@ let keys = {
     shoot: false
 };
 
+// Scale factor and offsets for drawing the game content on the canvas
+let scaleFactor = 1;
+let offsetX = 0;
+let offsetY = 0;
+
+
 // --- EVENT LISTENERS ---
 document.addEventListener("keydown", keyDown);
 document.addEventListener("keyup", keyUp);
@@ -92,7 +98,7 @@ window.addEventListener("gamepaddisconnected", (e) => {
     delete gamepads[e.gamepad.index];
 });
 
-// Window resize event for responsiveness (primarily for orientation lock if supported)
+// Window resize event for responsiveness
 window.onresize = resizeCanvas;
 
 
@@ -101,7 +107,10 @@ window.onload = function() {
     canvas = document.getElementById("gameCanvas");
     ctx = canvas.getContext("2d");
 
-    // Attempt to lock screen orientation to portrait
+    // Initial canvas resize to fit screen and set up scaling
+    resizeCanvas();
+
+    // Attempt to lock screen orientation to portrait for mobile
     if (screen.orientation && screen.orientation.lock) {
         screen.orientation.lock('portrait').then(() => {
             console.log("Screen orientation locked to portrait.");
@@ -128,20 +137,50 @@ window.onload = function() {
 
     // Create the touch controls HTML elements and set up their listeners
     createTouchControls();
-    // Setup listeners immediately after creation so they're ready, even if hidden
-    setupTouchListeners();
+    setupTouchListeners(); // Setup listeners immediately after creation so they're ready, even if hidden
 
 
     // Set up the game loop
     setInterval(update, 1000 / FPS);
 }
 
-// Simplified resizeCanvas: now primarily handles orientation lock for mobile
+// Resizes canvas to fill screen and calculates scaling for game content
 function resizeCanvas() {
-    // This function primarily serves the purpose of trying to lock orientation.
-    // The canvas's internal resolution (canvas.width, canvas.height) is fixed
-    // by its HTML attributes (800x600). Its visual scaling is handled by CSS (object-fit).
-    // So, no changes to canvas.width/height or scaleRatio here.
+    // Set canvas's internal drawing resolution to match the current viewport dimensions
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // Calculate the scale factor to fit our GAME_ACTUAL_WIDTH/HEIGHT into the new canvas dimensions
+    const scaleX = canvas.width / GAME_ACTUAL_WIDTH;
+    const scaleY = canvas.height / GAME_ACTUAL_HEIGHT;
+
+    // Use the smaller scale factor to ensure the entire game content is visible without cropping
+    scaleFactor = Math.min(scaleX, scaleY);
+
+    // Calculate offsets to center the scaled game area within the larger actual canvas
+    offsetX = (canvas.width - GAME_ACTUAL_WIDTH * scaleFactor) / 2;
+    offsetY = (canvas.height - GAME_ACTUAL_HEIGHT * scaleFactor) / 2;
+
+    // Reposition touch controls (if they exist)
+    const touchControls = document.getElementById('touch-controls');
+    if (touchControls) {
+        // Adjust touch control sizes based on the new scale factor
+        // We'll use absolute px values for button sizes to keep them proportional to the game
+        const buttonBaseSize = 70 * scaleFactor; // Base size for d-pad buttons
+        const fireButtonSize = 90 * scaleFactor; // Base size for fire button
+        const gapSize = 5 * scaleFactor; // Base size for gap
+
+        // Set CSS variables for touch button sizing (for CSS grid)
+        document.documentElement.style.setProperty('--touch-button-size', `${buttonBaseSize}px`);
+        document.documentElement.style.setProperty('--touch-gap-size', `${gapSize}px`);
+        document.documentElement.style.setProperty('--touch-shoot-size', `${fireButtonSize}px`);
+        document.documentElement.style.setProperty('--touch-shoot-font-size', `${fireButtonSize * 0.3}px`); // ~30% of button size
+
+        // Position touch controls relative to the canvas's current visible area
+        touchControls.style.bottom = `${offsetY + 10}px`; // 10px padding from the bottom of the game area
+        touchControls.style.left = `${offsetX + 10}px`;   // 10px padding from the left of the game area
+        touchControls.style.width = `${GAME_ACTUAL_WIDTH * scaleFactor - 20}px`; // Game width minus padding
+    }
 }
 
 
@@ -220,7 +259,7 @@ function Ship() {
     this.shootTimer = 0;
 
     this.draw = function() {
-        // No ctx.save/scale/translate here - done once in update loop
+        // All scaling and translation is now handled once in the update loop
         if (!this.exploding && (this.blinkOn || this.blinkNum == 0)) {
             // Draw a more spaceship-like design
             ctx.strokeStyle = "white";
@@ -386,7 +425,7 @@ function Bullet(x, y, angle) {
     this.explodeTime = 0;
 
     this.draw = function() {
-        // No ctx.save/scale/translate here - done once in update loop
+        // All scaling and translation is now handled once in the update loop
         if (this.explodeTime == 0) {
             ctx.fillStyle = "lime";
             ctx.beginPath();
@@ -554,7 +593,7 @@ function update() {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw the background color for the entire actual canvas area (including letterbox areas)
+    // Draw the background color for the entire actual canvas area (which is the full viewport)
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -564,7 +603,9 @@ function update() {
     // Calculate the scale factor to fit GAME_ACTUAL_WIDTH/HEIGHT into current canvas dimensions
     const scaleX = canvas.width / GAME_ACTUAL_WIDTH;
     const scaleY = canvas.height / GAME_ACTUAL_HEIGHT;
-    const overallScale = Math.min(scaleX, scaleY); // Use the smaller scale to fit content without cutting it off
+
+    // Use the smaller scale factor to ensure the entire game content is visible without cropping
+    const overallScale = Math.min(scaleX, scaleY);
 
     // Calculate translation to center the scaled game area within the canvas
     const translatedX = (canvas.width - GAME_ACTUAL_WIDTH * overallScale) / 2;
@@ -591,6 +632,7 @@ function update() {
         case GAME_STATE.PLAYING:
         case GAME_STATE.GAME_OVER: // Game over screen will still draw game elements underneath
             // Generate and draw shooting stars (now correctly scaled and positioned)
+            // No need for individual save/restore here as the global one applies.
             if (Math.random() < SHOOTING_STAR_CHANCE) {
                 let side = Math.floor(Math.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
                 let x, y, dx, dy;
@@ -754,8 +796,8 @@ function update() {
                 const originalWidth = watermarkImage.naturalWidth;
                 const originalHeight = watermarkImage.naturalHeight;
                 const targetWidth = 60; // Adjusted target width (virtual pixels)
-                const scaleFactor = targetWidth / originalWidth;
-                const targetHeight = originalHeight * scaleFactor;
+                const scaleFactorWM = targetWidth / originalWidth; // Separate scale factor for watermark
+                const targetHeight = originalHeight * scaleFactorWM;
 
                 // Position in virtual game coordinates
                 const wmX = GAME_ACTUAL_WIDTH - targetWidth - 10; // 10px padding from right edge
@@ -830,6 +872,7 @@ function handleIntroClick(/** @type {MouseEvent | TouchEvent} */ ev) {
 
 
 function drawStars() {
+    // No ctx.save/scale/translate here - done once in update loop
     ctx.fillStyle = "white"; // Stars are drawn relative to their own (x,y,radius)
     for (let i = 0; i < stars.length; i++) {
         ctx.beginPath();
@@ -852,6 +895,7 @@ function breakAsteroid(index) {
 
 // Helper function to draw a simplified ship for lives display
 function drawShipLifeIcon(x, y, angle, color = "white") {
+    // No ctx.save/scale/translate here - done once in update loop
     ctx.strokeStyle = color;
     ctx.lineWidth = SHIP_SIZE / 20;
 
@@ -991,14 +1035,31 @@ function showTouchControls() {
     if (touchControls && window.matchMedia("(pointer: coarse)").matches) {
         touchControls.style.display = 'flex';
         // Reposition and resize buttons relative to the canvas's current dimensions
-        // Get the canvas's position and size on the screen (its client rect)
         const canvasRect = canvas.getBoundingClientRect();
 
-        // The touch controls are positioned absolutely relative to the viewport/body.
-        // We need to calculate their position to be correctly within the canvas's visible area.
-        touchControls.style.bottom = (window.innerHeight - canvasRect.bottom + 10) + 'px'; // 10px from canvas bottom edge
-        touchControls.style.left = (canvasRect.left + 10) + 'px'; // 10px from canvas left edge
-        touchControls.style.width = (canvasRect.width - 20) + 'px'; // Canvas width minus 20px padding (10px each side)
+        // Calculate the touch control container's width/height/position relative to the scaled game area
+        // We want a fixed padding (e.g., 10px) from the inner game area's edges.
+        const padding = 10;
+        const totalGameWidth = GAME_ACTUAL_WIDTH * overallScale; // Actual scaled width of the game content
+        const totalGameHeight = GAME_ACTUAL_HEIGHT * overallScale; // Actual scaled height of the game content
+
+        // Position the touch controls container
+        touchControls.style.left = `${translatedX + padding}px`; // Left edge of game content + padding
+        touchControls.style.bottom = `${translatedY + padding}px`; // Bottom edge of game content + padding
+        touchControls.style.width = `${totalGameWidth - (padding * 2)}px`; // Game content width - padding
+        // For height, we'll let the content define it, but ensure it doesn't push off screen.
+        // Or, we can set a max height if needed. For now, flex will handle it.
+
+        // Dynamically set CSS variables for touch button sizing
+        const buttonBasePx = Math.min(canvasRect.width, canvasRect.height) * 0.12; // Base size relative to smaller canvas dimension
+        const fireButtonPx = Math.min(canvasRect.width, canvasRect.height) * 0.15; // Fire button size
+        const fontPx = Math.min(canvasRect.width, canvasRect.height) * 0.035; // Font size
+        const gapPx = Math.min(canvasRect.width, canvasRect.height) * 0.01; // Gap size
+
+        document.documentElement.style.setProperty('--touch-button-size', `${buttonBasePx}px`);
+        document.documentElement.style.setProperty('--touch-gap-size', `${gapPx}px`);
+        document.documentElement.style.setProperty('--touch-shoot-size', `${fireButtonPx}px`);
+        document.documentElement.style.setProperty('--touch-shoot-font-size', `${fontPx}px`);
     }
 }
 
@@ -1018,14 +1079,16 @@ function createTouchControls() {
     controlsContainer.style.justifyContent = 'space-between';
     controlsContainer.style.pointerEvents = 'none';
     controlsContainer.style.zIndex = '10';
+    // Apply CSS-defined width/bottom/left/right for initial flex container sizing
+    // and let showTouchControls adjust from there.
 
     // Left controls (Movement D-pad style)
     const leftControls = document.createElement('div');
     leftControls.style.display = 'grid';
-    // Sizes for grid cells are defined in CSS using vh units for responsiveness
-    leftControls.style.gridTemplateColumns = 'repeat(3, var(--touch-button-size, 10vh))'; 
-    leftControls.style.gridTemplateRows = 'repeat(3, var(--touch-button-size, 10vh))';
-    leftControls.style.gap = 'var(--touch-gap-size, 1vh)';
+    // Sizes for grid cells are now set by CSS variables defined in JS
+    leftControls.style.gridTemplateColumns = 'repeat(3, var(--touch-button-size))'; 
+    leftControls.style.gridTemplateRows = 'repeat(3, var(--touch-button-size))';
+    leftControls.style.gap = 'var(--touch-gap-size)';
     leftControls.style.pointerEvents = 'auto';
 
     leftControls.innerHTML = `
@@ -1052,10 +1115,10 @@ function createTouchControls() {
     shootButton.className = 'touch-button';
     shootButton.textContent = 'FIRE';
     shootButton.style.borderRadius = '50%';
-    // Specific sizes for shoot button defined in CSS using vh units
-    shootButton.style.width = 'var(--touch-shoot-size, 12vh)';
-    shootButton.style.height = 'var(--touch-shoot-size, 12vh)';
-    shootButton.style.fontSize = 'var(--touch-shoot-font-size, 4vh)';
+    // Specific sizes for shoot button defined in CSS variables
+    shootButton.style.width = 'var(--touch-shoot-size)';
+    shootButton.style.height = 'var(--touch-shoot-size)';
+    shootButton.style.fontSize = 'var(--touch-shoot-font-size)';
 
     rightControls.appendChild(shootButton);
     controlsContainer.appendChild(rightControls);
