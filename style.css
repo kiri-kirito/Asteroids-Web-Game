@@ -22,6 +22,9 @@ canvas {
     background-color: #000;
     border: 2px solid #eee;
     touch-action: none; /* Prevent touch gestures on the canvas itself */
+    /* Remove fixed width/height here so JS can control it */
+    max-width: 100%; /* Ensure canvas doesn't overflow container */
+    max-height: 100vh; /* Limit height to viewport height */
 }
 
 h1 {
@@ -34,7 +37,7 @@ h1 {
     bottom: 10px;
     left: 10px;
     right: 10px;
-    display: none; /* Hidden by default, shown by media query */
+    display: none; /* Hidden by default, shown by JS */
     justify-content: space-between;
     pointer-events: none; /* Allow events to pass through to canvas if not on a button */
     z-index: 10; /* Ensure controls are above canvas */
@@ -93,17 +96,15 @@ h1 {
 }
 
 
-/* Media queries to show touch controls only on devices with touch and no hover */
+/* Media queries for device capability detection */
 @media (pointer: coarse) and (hover: none) {
-    #touch-controls {
-        display: flex;
-    }
+    /* This media query itself is not empty. It acts as a condition for JS to check.
+       The 'display' property of #touch-controls is now solely managed by JS
+       based on both this media query and the game state. */
 }
 
-/* You might want to adjust these pixel values for a better fit for "mobile" */
+/* Optional: Fallback for older browsers or less precise mobile detection */
 @media (max-width: 800px) and (max-height: 600px) and (orientation: portrait),
        (max-width: 1024px) and (max-height: 768px) and (orientation: landscape) {
-    #touch-controls {
-        display: flex;
-    }
+    /* Similar to above, this media query also acts as a condition for JS. */
 }
