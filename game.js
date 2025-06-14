@@ -142,8 +142,15 @@ function resizeCanvas() {
     
     // Only update if the size has actually changed
     if (canvas.width !== width || canvas.height !== height) {
+        // Store the current context state
+        ctx.save();
+        
+        // Update canvas dimensions
         canvas.width = width;
         canvas.height = height;
+        
+        // Restore the context state
+        ctx.restore();
     }
 
     // Update touch controls visibility
@@ -558,10 +565,7 @@ function Asteroid(x, y, radius) {
 
 // --- GAME LOOP ---
 function update() {
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw space
+    // Clear canvas with a single operation
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -569,15 +573,15 @@ function update() {
     switch (gameState) {
         case GAME_STATE.LOADING:
             drawLoadingScreen();
-            hideTouchControls(); // Ensure controls are hidden during loading
+            hideTouchControls();
             break;
         case GAME_STATE.INTRO:
             drawIntroScreen();
-            hideTouchControls(); // Ensure controls are hidden during intro
+            hideTouchControls();
             break;
         case GAME_STATE.PLAYING:
-        case GAME_STATE.GAME_OVER: // Game over screen will still draw game elements underneath
-            // Draw static stars
+        case GAME_STATE.GAME_OVER:
+            // Draw static stars first
             drawStars();
 
             // Generate and draw shooting stars
@@ -633,7 +637,7 @@ function update() {
                     ctx.moveTo(ss.x, ss.y);
                     // Calculate tail end point by moving backward along the velocity vector
                     const tailX = ss.x - ss.dx / (SHOOTING_STAR_SPEED / FPS) * ss.length;
-                    const tailY = ss.y - ss.dy / (SHOATING_STAR_SPEED / FPS) * ss.length;
+                    const tailY = ss.y - ss.dy / (SHOOTING_STAR_SPEED / FPS) * ss.length;
                     ctx.lineTo(tailX, tailY);
                     ctx.stroke();
                 }
@@ -672,7 +676,6 @@ function update() {
                         if (distBetweenPoints(bullets[i].x, bullets[i].y, asteroids[j].x, asteroids[j].y) < bullets[i].radius + asteroids[j].radius) {
                             bullets[i].explode();
                             breakAsteroid(j);
-                            score += (ASTEROID_SIZE - asteroids[j].radius) / ASTEROID_SIZE * 100 + 50;
                             break;
                         }
                     }
@@ -852,8 +855,9 @@ function breakAsteroid(index) {
         asteroids.push(new Asteroid(x2, y2, radius));
     }
     
-    // Update score
-    score += Math.floor((ASTEROID_SIZE / radius) * 100);
+    // Update score with reduced points
+    // Base score is now 20 points, plus 10 points per level
+    score += Math.floor(20 + (level * 10));
     
     // Check if all asteroids are destroyed
     if (asteroids.length === 0) {
