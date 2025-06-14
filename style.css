@@ -44,7 +44,7 @@ canvas {
 
 /* On-screen touch controls styling */
 #touch-controls {
-    display: none; /* Hidden by default (for PC). */
+    display: none;
     position: fixed;
     bottom: 0;
     left: 0;
@@ -52,7 +52,7 @@ canvas {
     padding: 10px;
     justify-content: space-between;
     width: 100%;
-    box-sizing: border-box; /* Include padding in width calculation */
+    box-sizing: border-box;
     z-index: 1000;
     background: rgba(0, 0, 0, 0.5);
 }
@@ -67,10 +67,10 @@ canvas {
 
 #touch-controls .left-controls {
     display: grid;
-    grid-template-columns: repeat(3, 80px);
-    grid-template-rows: repeat(3, 80px);
-    gap: 10px;
-    margin-left: 20px;
+    grid-template-columns: repeat(3, 70px);
+    grid-template-rows: repeat(3, 70px);
+    gap: 8px;
+    margin-left: 15px;
 }
 
 #touch-controls .right-controls {
@@ -92,9 +92,9 @@ canvas {
     cursor: pointer;
     pointer-events: auto;
     touch-action: manipulation;
-    width: 80px;
-    height: 80px;
-    font-size: 30px;
+    width: 70px;
+    height: 70px;
+    font-size: 28px;
 }
 
 /* Positioning for D-pad buttons within the grid */
@@ -107,9 +107,9 @@ canvas {
 /* Styling for the larger fire button */
 .fire-button {
     border-radius: 50%;
-    width: 100px; /* Larger width/height for fire button */
+    width: 100px;
     height: 100px;
-    font-size: 40px; /* Larger font size for fire button */
+    font-size: 40px;
 }
 
 /* Hide the placeholder empty divs in the D-pad layout (the corners) */
@@ -143,16 +143,16 @@ canvas {
         }
 
         #touch-controls .left-controls {
-            grid-template-columns: repeat(3, min(80px, 20vw));
-            grid-template-rows: repeat(3, min(80px, 20vw));
-            gap: min(10px, 2vw);
+            grid-template-columns: repeat(3, min(70px, 18vw));
+            grid-template-rows: repeat(3, min(70px, 18vw));
+            gap: min(8px, 2vw);
             margin-left: 5vw;
         }
 
         .touch-button {
-            width: min(80px, 20vw);
-            height: min(80px, 20vw);
-            font-size: min(30px, 8vw);
+            width: min(70px, 18vw);
+            height: min(70px, 18vw);
+            font-size: min(28px, 7vw);
         }
 
         .fire-button {
@@ -189,16 +189,16 @@ canvas {
         }
 
         #touch-controls .left-controls {
-            grid-template-columns: repeat(3, min(60px, 15vh));
-            grid-template-rows: repeat(3, min(60px, 15vh));
-            gap: min(8px, 2vh);
+            grid-template-columns: repeat(3, min(50px, 12vh));
+            grid-template-rows: repeat(3, min(50px, 12vh));
+            gap: min(6px, 1.5vh);
             margin-left: 2vw;
         }
 
         .touch-button {
-            width: min(60px, 15vh);
-            height: min(60px, 15vh);
-            font-size: min(24px, 6vh);
+            width: min(50px, 12vh);
+            height: min(50px, 12vh);
+            font-size: min(20px, 5vh);
         }
 
         .fire-button {
